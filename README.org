@@ -1,0 +1,29 @@
+* Papis.el
+
+** Motivation
+
+The main motivation of this package is to make it
+easy to interact with ~org-mode~ and
+~papis~.
+
+We do not want to reinvent the wheel, so this project
+should be thought to play well with the very good
+package [[https://github.com/jkitchin/org-ref][org-ref]].
+
+
+** Disclaimer
+
+If you're an emacs lisp hacker, feel free to chip in.
+Otherwise this project should be treated as β software
+and it might just completely change in the future.
+
+
+** What is implemented
+
+I have implemented some functions that I use in my day-to-day
+research and worfklow.
+
+There is a `papis-ivy` function to open and so on,
+and org mode links.
+
+At some point it will get documented...
