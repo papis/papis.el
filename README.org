@@ -1,5 +1,7 @@
 * Papis.el
 
+https://papis.github.io/images/emacs-papis.gif
+
 ** Motivation
 
 The main motivation of this package is to make it
