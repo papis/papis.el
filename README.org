@@ -1,6 +1,6 @@
 * Papis.el
 
-https://papis.github.io/images/emacs-papis.gif
+[[https://papis.github.io/images/emacs-papis.gif]]
 
 ** Motivation
 
