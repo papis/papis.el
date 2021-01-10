@@ -81,6 +81,16 @@
                                "/" f))
           (gethash "files" doc)))
 
+(defun papis--get-ref (doc)
+  (gethash "ref" doc))
+
+(defun papis-org-ref-insert-citation-from-query (query)
+  (interactive "sPapis Query: ")
+  (let* ((doc (papis-ivy query))
+         (ref (papis--get-ref doc)))
+    (insert (format "cite:%s" ref))
+  ))
+
 (defun papis--open-doc (doc)
   (split-window-horizontally)
   (find-file (ivy-read "file: " (papis--get-file-paths doc)))
