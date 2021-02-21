@@ -1,28 +1,71 @@
+;; Generalities
+
+;; - We interact with papis through the papis' json exporter.
+;; - We use ~org-links~ to get information directly from papis.
+
+;; The libraries that we will need are therefore:
+
+;; [[file:README.org::*Generalities][Generalities:1]]
 (require 'ol)
 (require 'json)
+;; Generalities:1 ends here
 
-(defcustom papis--temp-output
+;; Variables
+
+
+;; [[file:README.org::*Variables][Variables:1]]
+(defcustom papis--temp-output-file
+  nil
+  "This variable holds the papis temporary output file where the json
+  output is dumped"
   :type 'string)
 
-(defcustom papis--binary
+(defcustom papis-binary-path
   "papis"
-  "The binary for papis"
+  "The binary path for papis.
+
+   You might have papis installed for instance in some
+   virtual environment"
   :type 'string)
 
 (defcustom papis-ivy-format-function
   #'papis-default-ivy-format-function
   "Function taking a papis document (hashmap) and outputing a
    string representation of it to be fed into ivy.")
+;; Variables:1 ends here
 
-(org-link-set-parameters "papis"
-                         :follow #'ol-papis-open
-                         :export #'ol-papis-export
-                         )
+;; papis+doi
 
+;; We define the link
+
+;; [[file:README.org::*papis+doi][papis+doi:1]]
 (org-link-set-parameters "papis+doi"
                          :follow #'ol-papis+doi-open
                          :export #'ol-papis+doi-export
                          :complete #'org-link-papis-store-doi
+                         )
+(defun ol-papis+doi-open (doi)
+  "Open papis document by doi"
+  (papis-open (format "doi:%s" doi)))
+
+(defun ol-papis+doi-export (doi description format)
+  (cond
+   ((eq format 'html) (format (concat "<a target='_blank'"
+                                      " href='https://doi.org/%s'>"
+                                      "%s"
+                                      "</a>") doi description))
+   ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
+   ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
+   (t description)))
+;; papis+doi:1 ends here
+
+;; Queries
+
+
+;; [[file:README.org::*Queries][Queries:1]]
+(org-link-set-parameters "papis"
+                         :follow #'ol-papis-open
+                         :export #'ol-papis-export
                          )
 
 (defun org-papis-store-doi-link (query)
@@ -36,23 +79,8 @@
   (let* ((doc (papis-ivy link)))
     (cond
      (doc (papis--open-doc doc))
-     (t (error "No doc found"))
-     )
-    )
-  )
+     (t (error "No doc found")))))
 
-(defun ol-papis+doi-open (doi)
-  (papis-open (format "doi:%s" doi)))
-
-(defun ol-papis+doi-export (doi description format)
-  (cond
-   ((eq format 'html) (format (concat "<a target='_blank'"
-                                      " href='https://doi.org/%s'>"
-                                      "%s"
-                                      "</a>") doi description))
-   ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
-   ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
-   (t description)))
 
 (defun org-papis-store-url-link (query)
   (interactive "sPapis Query: ")
@@ -73,8 +101,7 @@
 
 (defun papis-open (query)
   (interactive "sPapis Query: ")
-  (papis--open-doc (papis-ivy query))
-  )
+  (papis--open-doc (papis-ivy query)))
 
 (defun papis--get-file-paths (doc)
   (mapcar #'(lambda (f) (concat (papis--doc-get-folder doc)
@@ -84,17 +111,10 @@
 (defun papis--get-ref (doc)
   (gethash "ref" doc))
 
-(defun papis-org-ref-insert-citation-from-query (query)
-  (interactive "sPapis Query: ")
-  (let* ((doc (papis-ivy query))
-         (ref (papis--get-ref doc)))
-    (insert (format "cite:%s" ref))
-  ))
 
 (defun papis--open-doc (doc)
   (split-window-horizontally)
-  (find-file (ivy-read "file: " (papis--get-file-paths doc)))
-  )
+  (find-file (ivy-read "file: " (papis--get-file-paths doc))))
 
 (defun org-papis-store-file-link (query)
   (interactive "sPapis Query: ")
@@ -138,8 +158,7 @@
            papis-command)))))
 
 (defun papis--get-libs (&optional library)
-  (papis--cmd "list --libraries" library)
-  )
+  (papis--cmd "list --libraries" library))
 
 (defun papis-edit (query)
   (interactive "sPapis Query: ")
@@ -149,24 +168,17 @@
     (find-file info)
     ;; TODO: implement waiting after editing the file like
     ;; with a C-c C-c binding
-    (papis--doc-update doc)
-    )
-  )
+    (papis--doc-update doc)))
 
 (defun papis--doc-update (doc)
   (let ((folder (papis--doc-get-folder doc)))
-    (papis--cmd (concat "update --doc-folder " folder))
-    )
-  )
+    (papis--cmd (concat "update --doc-folder " folder))))
 
 (defun papis--cmd (cmd &optional library)
   "Helping function to run papis commands"
-  (let ((lib-flags (if library (concat "-l " library) "")
-        ))
+  (let ((lib-flags (if library (concat "-l " library) "")))
     (shell-command-to-string
-     (format "%s %s %s" papis--binary lib-flags cmd))
-    )
-  )
+     (format "%s %s %s" papis-binary-path lib-flags cmd))))
 
 (defun papis-json (query outfile)
   (shell-command (format "papis export --all --format json '%s' -o %s"
@@ -179,13 +191,11 @@
   (let* ((json-object-type 'hash-table)
          (json-array-type 'list)
          (json-key-type 'string)
-         (papis--temp-output (make-temp-file "papis-emacs-"))
-         (exit-code (papis-json query papis--temp-output)))
+         (papis--temp-output-file (make-temp-file "papis-emacs-"))
+         (exit-code (papis-json query papis--temp-output-file)))
     (if (not (eq exit-code 0))
         (error "Something happened running the papis command"))
-    (json-read-file papis--temp-output)
-    )
-  )
+    (json-read-file papis--temp-output-file)))
 
 (defun papis-default-ivy-format-function (doc)
   `(
@@ -196,22 +206,26 @@
              (or (gethash "tags" doc) "")
              (let ((n (gethash "_note" doc))) (if n (concat ":note " n) "")))
     .
-    ,doc
-    )
-  )
+    ,doc))
 
 (defun papis-ivy (query)
   (interactive "sPapis Query: ")
   (let* ((results (papis-query query))
          (formatted-results (mapcar papis-ivy-format-function results))
-         (ivy-add-newline-after-prompt t)
-         )
+         (ivy-add-newline-after-prompt t))
     (cdr (assoc
           (ivy-read "Select an entry: " formatted-results)
-          formatted-results
-          )
-         )
-    )
-  )
+          formatted-results))))
 
 (provide 'papis)
+;; Queries:1 ends here
+
+;; Org ref compatibility
+
+;; [[file:README.org::*Org ref compatibility][Org ref compatibility:1]]
+(defun papis-org-ref-insert-citation-from-query (query)
+  (interactive "sPapis Query: ")
+  (let* ((doc (papis-ivy query))
+         (ref (papis--get-ref doc)))
+    (insert (format "cite:%s" ref))))
+;; Org ref compatibility:1 ends here
