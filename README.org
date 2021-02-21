@@ -267,10 +267,39 @@ We define the link
 #+end_src
 
 ** Org ref compatibility
+*** Citations
 #+begin_src emacs-lisp
 (defun papis-org-ref-insert-citation-from-query (query)
   (interactive "sPapis Query: ")
   (let* ((doc (papis-ivy query))
          (ref (papis--get-ref doc)))
     (insert (format "cite:%s" ref))))
+#+end_src
+
+*** Open pdfs
+=org-ref= can open the pdf of a publicaction
+from the =cite:my-reference= link, but in the case of papis
+this pdf lives in an isolated folder of its own.
+
+However in =org-ref= you can customize how you get the pdf
+from the =cite= link through the
+elisp:org-ref-get-pdf-filename-function.
+Therefore, in order to use papis to open the pdf of the referenced
+documents you can set
+
+#+begin_src emacs-lisp :tangle no :eval no
+(setq org-ref-get-pdf-filename-function
+      #'papis-org-ref-get-pdf-filename)
+#+end_src
+
+Its implementation is given below:
+#+begin_src emacs-lisp
+(defun papis-org-ref-get-pdf-filename (key)
+    (interactive)
+    (let* ((docs (papis-query (format "ref:'%s'" key)))
+           (doc (car docs))
+           (files (papis--get-file-paths doc)))
+      (pcase (length files)
+        (1 (car files))
+        (_ (ivy-read "" files)))))
 #+end_src

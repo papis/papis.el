@@ -1,30 +1,32 @@
 
 # Table of Contents
 
-1.  [Papis.el](#org91f5f99)
-    1.  [Motivation](#org4e1103c)
-    2.  [Disclaimer](#orga58e491)
-    3.  [What is implemented](#orgc3de9ef)
-2.  [Implementation](#orgef2c59c)
-    1.  [Generalities](#org95b1afb)
-    2.  [Variables](#orgf68d7b7)
-    3.  [General functions](#orgd7edc89)
-    4.  [Commands](#org0d9e4b7)
-    5.  [Papis-ivy](#orgb3dd854)
-    6.  [Org-links](#orgdc33ed7)
-        1.  [papis+doi](#org7e050c0)
-        2.  [Queries](#orgd9f4eae)
-    7.  [Org ref compatibility](#orgb4c2b45)
+1.  [Papis.el](#org0d6544c)
+    1.  [Motivation](#orga2f3b34)
+    2.  [Disclaimer](#org5a804e9)
+    3.  [What is implemented](#orgd49bd91)
+2.  [Implementation](#orgda3d290)
+    1.  [Generalities](#orge802992)
+    2.  [Variables](#org074e444)
+    3.  [General functions](#orgb0d14f9)
+    4.  [Commands](#orgf97744c)
+    5.  [Papis-ivy](#org256c3b2)
+    6.  [Org-links](#orgfd45a4a)
+        1.  [papis+doi](#org8a6265d)
+        2.  [Queries](#org61b1973)
+    7.  [Org ref compatibility](#org5347904)
+        1.  [Citations](#org019184b)
+        2.  [Open pdfs](#org018a8e9)
 
 
-<a id="org91f5f99"></a>
+<a id="org0d6544c"></a>
 
 # Papis.el
 
 ![img](https://papis.github.io/images/emacs-papis.gif)
 
 
-<a id="org4e1103c"></a>
+<a id="orga2f3b34"></a>
 
 ## Motivation
 
@@ -37,7 +39,7 @@ should be thought to play well with the very good
 package [org-ref](https://github.com/jkitchin/org-ref).
 
 
-<a id="orga58e491"></a>
+<a id="org5a804e9"></a>
 
 ## Disclaimer
 
@@ -46,7 +48,7 @@ Otherwise this project should be treated as β software
 and it might just completely change in the future.
 
 
-<a id="orgc3de9ef"></a>
+<a id="orgd49bd91"></a>
 
 ## What is implemented
 
@@ -59,14 +61,14 @@ and org mode links.
 At some point it will get documented&#x2026;
 
 
-<a id="orgef2c59c"></a>
+<a id="orgda3d290"></a>
 
 # Implementation
 
 `papis.el` is written as a literate program
 
 
-<a id="org95b1afb"></a>
+<a id="orge802992"></a>
 
 ## Generalities
 
@@ -79,7 +81,7 @@ The libraries that we will need are therefore:
     (require 'json)
 
 
-<a id="orgf68d7b7"></a>
+<a id="org074e444"></a>
 
 ## Variables
 
@@ -104,27 +106,27 @@ The libraries that we will need are therefore:
        string representation of it to be fed into ivy.")
 
 
-<a id="orgd7edc89"></a>
+<a id="orgb0d14f9"></a>
 
 ## General functions
 
 
-<a id="org0d9e4b7"></a>
+<a id="orgf97744c"></a>
 
 ## Commands
 
 
-<a id="orgb3dd854"></a>
+<a id="org256c3b2"></a>
 
 ## Papis-ivy
 
 
-<a id="orgdc33ed7"></a>
+<a id="orgfd45a4a"></a>
 
 ## Org-links
 
 
-<a id="org7e050c0"></a>
+<a id="org8a6265d"></a>
 
 ### papis+doi
 
@@ -150,7 +152,7 @@ We define the link
        (t description)))
 
 
-<a id="orgd9f4eae"></a>
+<a id="org61b1973"></a>
 
 ### Queries
 
@@ -312,13 +314,47 @@ We define the link
     (provide 'papis)
 
 
-<a id="orgb4c2b45"></a>
+<a id="org5347904"></a>
 
 ## Org ref compatibility
+
+
+<a id="org019184b"></a>
+
+### Citations
 
     (defun papis-org-ref-insert-citation-from-query (query)
       (interactive "sPapis Query: ")
       (let* ((doc (papis-ivy query))
              (ref (papis--get-ref doc)))
         (insert (format "cite:%s" ref))))
+
+
+<a id="org018a8e9"></a>
+
+### Open pdfs
+
+`org-ref` can open the pdf of a publicaction
+from the `cite:my-reference` link, but in the case of papis
+this pdf lives in an isolated folder of its own.
+
+However in `org-ref` you can customize how you get the pdf
+from the `cite` link through the
+<org-ref-get-pdf-filename-function>.
+Therefore, in order to use papis to open the pdf of the referenced
+documents you can set
+
+    (setq org-ref-get-pdf-filename-function
+          #'papis-org-ref-get-pdf-filename)
+
+Its implementation is given below:
+
+    (defun papis-org-ref-get-pdf-filename (key)
+        (interactive)
+        (let* ((docs (papis-query (format "ref:'%s'" key)))
+               (doc (car docs))
+               (files (papis--get-file-paths doc)))
+          (pcase (length files)
+            (1 (car files))
+            (_ (ivy-read "" files)))))
 

@@ -220,12 +220,27 @@
 (provide 'papis)
 ;; Queries:1 ends here
 
-;; Org ref compatibility
+;; Citations
 
-;; [[file:README.org::*Org ref compatibility][Org ref compatibility:1]]
+;; [[file:README.org::*Citations][Citations:1]]
 (defun papis-org-ref-insert-citation-from-query (query)
   (interactive "sPapis Query: ")
   (let* ((doc (papis-ivy query))
          (ref (papis--get-ref doc)))
     (insert (format "cite:%s" ref))))
-;; Org ref compatibility:1 ends here
+;; Citations:1 ends here
+
+
+
+;; Its implementation is given below:
+
+;; [[file:README.org::*Open pdfs][Open pdfs:2]]
+(defun papis-org-ref-get-pdf-filename (key)
+    (interactive)
+    (let* ((docs (papis-query (format "ref:'%s'" key)))
+           (doc (car docs))
+           (files (papis--get-file-paths doc)))
+      (pcase (length files)
+        (1 (car files))
+        (_ (ivy-read "" files)))))
+;; Open pdfs:2 ends here
