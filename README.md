@@ -1,32 +1,34 @@
 
 # Table of Contents
 
-1.  [Papis.el](#org0d6544c)
-    1.  [Motivation](#orga2f3b34)
-    2.  [Disclaimer](#org5a804e9)
-    3.  [What is implemented](#orgd49bd91)
-2.  [Implementation](#orgda3d290)
-    1.  [Generalities](#orge802992)
-    2.  [Variables](#org074e444)
-    3.  [General functions](#orgb0d14f9)
-    4.  [Commands](#orgf97744c)
-    5.  [Papis-ivy](#org256c3b2)
-    6.  [Org-links](#orgfd45a4a)
-        1.  [papis+doi](#org8a6265d)
-        2.  [Queries](#org61b1973)
-    7.  [Org ref compatibility](#org5347904)
-        1.  [Citations](#org019184b)
-        2.  [Open pdfs](#org018a8e9)
+1.  [Papis.el](#org0d40bfb)
+    1.  [Motivation](#org09ca56d)
+    2.  [Disclaimer](#org89b7d5b)
+    3.  [What is implemented](#org6426e45)
+2.  [Implementation](#org1c8a459)
+    1.  [Generalities](#orga5d6334)
+    2.  [Variables](#orge5ec143)
+    3.  [General functions](#org7f78cc6)
+    4.  [Commands](#org91038be)
+    5.  [Papis-ivy](#org2b54c4e)
+    6.  [Org-links](#org791173c)
+        1.  [papis+doi](#org0ef2168)
+        2.  [Queries](#orgee55549)
+    7.  [Org ref compatibility](#org0ade50a)
+        1.  [Open pdfs](#orgce608f2)
+        2.  [Citations](#org8082e95)
+        3.  [Bibtex entries](#org1196a47)
+3.  [Bibliography](#org8429e30)
 
 
-<a id="org0d6544c"></a>
+<a id="org0d40bfb"></a>
 
 # Papis.el
 
 ![img](https://papis.github.io/images/emacs-papis.gif)
 
 
-<a id="orga2f3b34"></a>
+<a id="org09ca56d"></a>
 
 ## Motivation
 
@@ -39,7 +41,7 @@ should be thought to play well with the very good
 package [org-ref](https://github.com/jkitchin/org-ref).
 
 
-<a id="org5a804e9"></a>
+<a id="org89b7d5b"></a>
 
 ## Disclaimer
 
@@ -48,7 +50,7 @@ Otherwise this project should be treated as β software
 and it might just completely change in the future.
 
 
-<a id="orgd49bd91"></a>
+<a id="org6426e45"></a>
 
 ## What is implemented
 
@@ -61,14 +63,14 @@ and org mode links.
 At some point it will get documented&#x2026;
 
 
-<a id="orgda3d290"></a>
+<a id="org1c8a459"></a>
 
 # Implementation
 
-`papis.el` is written as a literate program
+`papis.el` is written as a literate program <sup id="39f041f6b1d2d698620dbd1d6c83c888"><a href="#LiteratePrograKnuth1984" title="Knuth, Literate Programming, {The Computer Journal}, v(), 97--111 (1984).">LiteratePrograKnuth1984</a></sup>.
 
 
-<a id="orge802992"></a>
+<a id="orga5d6334"></a>
 
 ## Generalities
 
@@ -81,7 +83,7 @@ The libraries that we will need are therefore:
     (require 'json)
 
 
-<a id="org074e444"></a>
+<a id="orge5ec143"></a>
 
 ## Variables
 
@@ -106,27 +108,27 @@ The libraries that we will need are therefore:
        string representation of it to be fed into ivy.")
 
 
-<a id="orgb0d14f9"></a>
+<a id="org7f78cc6"></a>
 
 ## General functions
 
 
-<a id="orgf97744c"></a>
+<a id="org91038be"></a>
 
 ## Commands
 
 
-<a id="org256c3b2"></a>
+<a id="org2b54c4e"></a>
 
 ## Papis-ivy
 
 
-<a id="orgfd45a4a"></a>
+<a id="org791173c"></a>
 
 ## Org-links
 
 
-<a id="org8a6265d"></a>
+<a id="org0ef2168"></a>
 
 ### papis+doi
 
@@ -152,7 +154,7 @@ We define the link
        (t description)))
 
 
-<a id="org61b1973"></a>
+<a id="orgee55549"></a>
 
 ### Queries
 
@@ -275,9 +277,57 @@ We define the link
          (format "%s %s %s" papis-binary-path lib-flags cmd))))
     
     (defun papis-json (query outfile)
-      (shell-command (format "papis export --all --format json '%s' -o %s"
+      (shell-command (format "%s export --all --format json '%s' -o %s"
+                             papis-binary-path
                              query
                              outfile)))
+    
+    (defun papis-bibtex (query outfile)
+      (shell-command (format "%s export --all --format bibtex '%s' -o %s"
+                             papis-binary-path
+                             query
+                             outfile)))
+    
+    (defvar papis--refs-to-bibtex-script
+    "
+    import argparse
+    import papis.api
+    from papis.bibtex import to_bibtex
+    
+    parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                     description='')
+    parser.add_argument('refs', help='References', action='store', nargs='*')
+    args = parser.parse_args()
+    
+    docs = []
+    
+    for ref in args.refs:
+        docs.extend(papis.api.get_documents_in_lib(library=None, search=ref))
+    
+    for d in docs:
+        print(to_bibtex(d))
+    ")
+    
+    (defun papis-exec (python-file &optional arguments)
+      (let ((fmt "%s exec %s %s"))
+        (shell-command-to-string (format fmt
+                                         papis-binary-path
+                                         python-file
+                                         (or arguments "")))))
+    
+    (defun papis--refs-to-bibtex (refs)
+      (let ((py-script (make-temp-file "papis-bibtex-script" nil ".py")))
+        (with-temp-buffer
+          (insert papis--refs-to-bibtex-script)
+          (write-file py-script))
+        (papis-exec py-script (s-join " " refs))))
+    
+    (defun papis-bibtex-to-string (query)
+      (let ((tmp (make-temp-file "")))
+        (with-temp-buffer
+          (papis-bibtex query tmp)
+          (insert-file-contents tmp)
+          (buffer-string))))
     
     (defun papis-query (query)
       "Make a general papis query:
@@ -314,23 +364,12 @@ We define the link
     (provide 'papis)
 
 
-<a id="org5347904"></a>
+<a id="org0ade50a"></a>
 
 ## Org ref compatibility
 
 
-<a id="org019184b"></a>
-
-### Citations
-
-    (defun papis-org-ref-insert-citation-from-query (query)
-      (interactive "sPapis Query: ")
-      (let* ((doc (papis-ivy query))
-             (ref (papis--get-ref doc)))
-        (insert (format "cite:%s" ref))))
-
-
-<a id="org018a8e9"></a>
+<a id="orgce608f2"></a>
 
 ### Open pdfs
 
@@ -357,4 +396,61 @@ Its implementation is given below:
           (pcase (length files)
             (1 (car files))
             (_ (ivy-read "" files)))))
+
+
+<a id="org8082e95"></a>
+
+### Citations
+
+In general it is recommended to use the citation mechanisms of
+`org-ref`, however, if for some reason you would like to cite
+directly from `papis`, you can use the function
+
+    (defun papis-org-ref-insert-citation-from-query (query)
+      (interactive "sPapis Query: ")
+      (let* ((doc (papis-ivy query))
+             (ref (papis--get-ref doc)))
+        (insert (format "cite:%s" ref))))
+
+
+<a id="org1196a47"></a>
+
+### Bibtex entries
+
+    
+    (defun papis-create-papis-bibtex-refs-dblock (bibfile)
+      (insert (format "#+begin: papis-bibtex-refs :tangle %s" bibfile))
+      (insert "\n")
+      (insert "#+end:"))
+    
+    (defun papis-extract-citations-into-dblock (&optional bibfile)
+      (interactive)
+      (if (org-find-dblock "papis-bibtex-refs")
+          (progn
+            (org-show-entry)
+            (org-update-dblock))
+        (papis-create-papis-bibtex-refs-dblock
+         (or bibfile (read-file-name "Bib file: " nil "main.bib")))))
+
+    (defun org-dblock-write:papis-bibtex-refs (params)
+      (let ((tangle-file (or (plist-get params :tangle)
+                             (buffer-file-name)))
+            (exports ":exports none"))
+        (insert
+         (format "#+begin_src bibtex %s :tangle %s\n"
+                 exports
+                 tangle-file)))
+      (let* ((refs (org-ref-get-bibtex-keys))
+             (queries (mapcar (lambda (r) (format "ref:\"%s\"" r))
+                              refs)))
+        (insert (papis--refs-to-bibtex queries)))
+      (insert "#+end_src\n"))
+
+
+<a id="org8429e30"></a>
+
+# Bibliography
+
+# Bibliography
+<a id="LiteratePrograKnuth1984"></a>[LiteratePrograKnuth1984] Knuth, Literate Programming, <i>The Computer Journal</i>, <b>27</b>, 97-111 (1984). <a href="http://dx.doi.org/10.1093/comjnl/27.2.97">link</a>. <a href="http://dx.doi.org/10.1093/comjnl/27.2.97">doi</a>. [↩](#39f041f6b1d2d698620dbd1d6c83c888)
 

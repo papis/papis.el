@@ -36,7 +36,8 @@ At some point it will get documented...
     :header-args+: :comments both
   :end:
 
-~papis.el~ is written as a literate program
+=papis.el= is written as a literate program cite:LiteratePrograKnuth1984.
+
 
 ** Generalities
 
@@ -227,9 +228,57 @@ We define the link
      (format "%s %s %s" papis-binary-path lib-flags cmd))))
 
 (defun papis-json (query outfile)
-  (shell-command (format "papis export --all --format json '%s' -o %s"
+  (shell-command (format "%s export --all --format json '%s' -o %s"
+                         papis-binary-path
                          query
                          outfile)))
+
+(defun papis-bibtex (query outfile)
+  (shell-command (format "%s export --all --format bibtex '%s' -o %s"
+                         papis-binary-path
+                         query
+                         outfile)))
+
+(defvar papis--refs-to-bibtex-script
+"
+import argparse
+import papis.api
+from papis.bibtex import to_bibtex
+
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                 description='')
+parser.add_argument('refs', help='References', action='store', nargs='*')
+args = parser.parse_args()
+
+docs = []
+
+for ref in args.refs:
+    docs.extend(papis.api.get_documents_in_lib(library=None, search=ref))
+
+for d in docs:
+    print(to_bibtex(d))
+")
+
+(defun papis-exec (python-file &optional arguments)
+  (let ((fmt "%s exec %s %s"))
+    (shell-command-to-string (format fmt
+                                     papis-binary-path
+                                     python-file
+                                     (or arguments "")))))
+
+(defun papis--refs-to-bibtex (refs)
+  (let ((py-script (make-temp-file "papis-bibtex-script" nil ".py")))
+    (with-temp-buffer
+      (insert papis--refs-to-bibtex-script)
+      (write-file py-script))
+    (papis-exec py-script (s-join " " refs))))
+
+(defun papis-bibtex-to-string (query)
+  (let ((tmp (make-temp-file "")))
+    (with-temp-buffer
+      (papis-bibtex query tmp)
+      (insert-file-contents tmp)
+      (buffer-string))))
 
 (defun papis-query (query)
   "Make a general papis query:
@@ -267,15 +316,6 @@ We define the link
 #+end_src
 
 ** Org ref compatibility
-*** Citations
-#+begin_src emacs-lisp
-(defun papis-org-ref-insert-citation-from-query (query)
-  (interactive "sPapis Query: ")
-  (let* ((doc (papis-ivy query))
-         (ref (papis--get-ref doc)))
-    (insert (format "cite:%s" ref))))
-#+end_src
-
 *** Open pdfs
 =org-ref= can open the pdf of a publicaction
 from the =cite:my-reference= link, but in the case of papis
@@ -303,3 +343,78 @@ Its implementation is given below:
         (1 (car files))
         (_ (ivy-read "" files)))))
 #+end_src
+*** Citations
+In general it is recommended to use the citation mechanisms of
+=org-ref=, however, if for some reason you would like to cite
+directly from =papis=, you can use the function
+
+#+begin_src emacs-lisp
+(defun papis-org-ref-insert-citation-from-query (query)
+  (interactive "sPapis Query: ")
+  (let* ((doc (papis-ivy query))
+         (ref (papis--get-ref doc)))
+    (insert (format "cite:%s" ref))))
+#+end_src
+
+
+***  Bibtex entries
+
+#+begin_src emacs-lisp
+
+(defun papis-create-papis-bibtex-refs-dblock (bibfile)
+  (insert (format "#+begin: papis-bibtex-refs :tangle %s" bibfile))
+  (insert "\n")
+  (insert "#+end:"))
+
+(defun papis-extract-citations-into-dblock (&optional bibfile)
+  (interactive)
+  (if (org-find-dblock "papis-bibtex-refs")
+      (progn
+        (org-show-entry)
+        (org-update-dblock))
+    (papis-create-papis-bibtex-refs-dblock
+     (or bibfile (read-file-name "Bib file: " nil "main.bib")))))
+#+end_src
+
+
+#+begin_src emacs-lisp
+(defun org-dblock-write:papis-bibtex-refs (params)
+  (let ((tangle-file (or (plist-get params :tangle)
+                         (buffer-file-name)))
+        (exports ":exports none"))
+    (insert
+     (format "#+begin_src bibtex %s :tangle %s\n"
+             exports
+             tangle-file)))
+  (let* ((refs (org-ref-get-bibtex-keys))
+         (queries (mapcar (lambda (r) (format "ref:\"%s\"" r))
+                          refs)))
+    (insert (papis--refs-to-bibtex queries)))
+  (insert "#+end_src\n"))
+#+end_src
+
+* Bibliography
+#+begin: papis-bibtex-refs :tangle /home/gallo/software/papis.el/main.bib
+#+begin_src bibtex :exports none :tangle /home/gallo/software/papis.el/main.bib
+@article{LiteratePrograKnuth1984,
+  author = {Knuth, D. E.},
+  doi = {10.1093/comjnl/27.2.97},
+  issn = {0010-4620},
+  issue = {2},
+  journal = {The Computer Journal},
+  language = {en},
+  month = {2},
+  pages = {97--111},
+  publisher = {Oxford University Press (OUP)},
+  title = {Literate Programming},
+  url = {http://dx.doi.org/10.1093/comjnl/27.2.97},
+  volume = {27},
+  year = {1984},
+}
+
+#+end_src
+
+#+end:
+
+bibliography:main.bib
+bibliographystyle:unsrt

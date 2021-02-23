@@ -181,9 +181,57 @@
      (format "%s %s %s" papis-binary-path lib-flags cmd))))
 
 (defun papis-json (query outfile)
-  (shell-command (format "papis export --all --format json '%s' -o %s"
+  (shell-command (format "%s export --all --format json '%s' -o %s"
+                         papis-binary-path
                          query
                          outfile)))
+
+(defun papis-bibtex (query outfile)
+  (shell-command (format "%s export --all --format bibtex '%s' -o %s"
+                         papis-binary-path
+                         query
+                         outfile)))
+
+(defvar papis--refs-to-bibtex-script
+"
+import argparse
+import papis.api
+from papis.bibtex import to_bibtex
+
+parser = argparse.ArgumentParser(formatter_class=argparse.RawTextHelpFormatter,
+                                 description='')
+parser.add_argument('refs', help='References', action='store', nargs='*')
+args = parser.parse_args()
+
+docs = []
+
+for ref in args.refs:
+    docs.extend(papis.api.get_documents_in_lib(library=None, search=ref))
+
+for d in docs:
+    print(to_bibtex(d))
+")
+
+(defun papis-exec (python-file &optional arguments)
+  (let ((fmt "%s exec %s %s"))
+    (shell-command-to-string (format fmt
+                                     papis-binary-path
+                                     python-file
+                                     (or arguments "")))))
+
+(defun papis--refs-to-bibtex (refs)
+  (let ((py-script (make-temp-file "papis-bibtex-script" nil ".py")))
+    (with-temp-buffer
+      (insert papis--refs-to-bibtex-script)
+      (write-file py-script))
+    (papis-exec py-script (s-join " " refs))))
+
+(defun papis-bibtex-to-string (query)
+  (let ((tmp (make-temp-file "")))
+    (with-temp-buffer
+      (papis-bibtex query tmp)
+      (insert-file-contents tmp)
+      (buffer-string))))
 
 (defun papis-query (query)
   "Make a general papis query:
@@ -220,16 +268,6 @@
 (provide 'papis)
 ;; Queries:1 ends here
 
-;; Citations
-
-;; [[file:README.org::*Citations][Citations:1]]
-(defun papis-org-ref-insert-citation-from-query (query)
-  (interactive "sPapis Query: ")
-  (let* ((doc (papis-ivy query))
-         (ref (papis--get-ref doc)))
-    (insert (format "cite:%s" ref))))
-;; Citations:1 ends here
-
 
 
 ;; Its implementation is given below:
@@ -244,3 +282,52 @@
         (1 (car files))
         (_ (ivy-read "" files)))))
 ;; Open pdfs:2 ends here
+
+;; Citations
+;; In general it is recommended to use the citation mechanisms of
+;; =org-ref=, however, if for some reason you would like to cite
+;; directly from =papis=, you can use the function
+
+
+;; [[file:README.org::*Citations][Citations:1]]
+(defun papis-org-ref-insert-citation-from-query (query)
+  (interactive "sPapis Query: ")
+  (let* ((doc (papis-ivy query))
+         (ref (papis--get-ref doc)))
+    (insert (format "cite:%s" ref))))
+;; Citations:1 ends here
+
+;; Bibtex entries
+
+
+;; [[file:README.org::*Bibtex entries][Bibtex entries:1]]
+(defun papis-create-papis-bibtex-refs-dblock (bibfile)
+  (insert (format "#+begin: papis-bibtex-refs :tangle %s" bibfile))
+  (insert "\n")
+  (insert "#+end:"))
+
+(defun papis-extract-citations-into-dblock (&optional bibfile)
+  (interactive)
+  (if (org-find-dblock "papis-bibtex-refs")
+      (progn
+        (org-show-entry)
+        (org-update-dblock))
+    (papis-create-papis-bibtex-refs-dblock
+     (or bibfile (read-file-name "Bib file: " nil "main.bib")))))
+;; Bibtex entries:1 ends here
+
+;; [[file:README.org::*Bibtex entries][Bibtex entries:2]]
+(defun org-dblock-write:papis-bibtex-refs (params)
+  (let ((tangle-file (or (plist-get params :tangle)
+                         (buffer-file-name)))
+        (exports ":exports none"))
+    (insert
+     (format "#+begin_src bibtex %s :tangle %s\n"
+             exports
+             tangle-file)))
+  (let* ((refs (org-ref-get-bibtex-keys))
+         (queries (mapcar (lambda (r) (format "ref:\"%s\"" r))
+                          refs)))
+    (insert (papis--refs-to-bibtex queries)))
+  (insert "#+end_src\n"))
+;; Bibtex entries:2 ends here
