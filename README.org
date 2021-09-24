@@ -330,6 +330,44 @@ We define the link
 
 
 
+** Paper sections
+When doing research, often you would like to create some notes on every paper
+and write some sections with the section titles being links to the papers
+with some properties so that you can use org-mode's colum mode.
+
+You can use the following function to create a link with properties
+
+#+begin_src emacs-lisp
+(defun org-papis-doi-heading (query)
+  (@papis-query)
+  (let* ((doc (papis-ivy query))
+         (title (papis--doc-get doc "title"))
+         (author (papis--doc-get doc "author"))
+         (year (papis--doc-get doc "year")))
+    (org-insert-heading)
+    (insert (format "[[papis+doi:%s][%s]]"
+                    (papis--doc-get doc "doi")
+                    title))
+    (insert "\n")
+    (insert (format (concat ":PROPERTIES:\n"
+                            ":AUTHOR: %s\n"
+                            ":TITLE: %s\n"
+                            ":YEAR: %s\n"
+                            ":END:")
+                    author title year))))
+#+end_src
+
+A recommendation can be to write as the =COLUMNS=
+variable and the =PROPERTIES= like so
+
+#+begin_src example
+#+COLUMNS: %7TODO %5YEAR %10AUTHOR %45TITLE %TAGS
+#+PROPERTIES: TITLE AUTHOR YEAR
+#+end_src
+
+and then you can turn on the =org-columns= mode.
+
+
 ** =org-ref= compatibility
 *** Open pdfs
 =org-ref= can open the pdf of a publicaction

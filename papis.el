@@ -293,6 +293,34 @@
                     (papis--doc-get doc "title")))))
 ;; =papis=:2 ends here
 
+;; Paper sections
+;; When doing research, often you would like to create some notes on every paper
+;; and write some sections with the section titles being links to the papers
+;; with some properties so that you can use org-mode's colum mode.
+
+;; You can use the following function to create a link with properties
+
+
+;; [[file:README.org::*Paper sections][Paper sections:1]]
+(defun org-papis-doi-heading (query)
+  (@papis-query)
+  (let* ((doc (papis-ivy query))
+         (title (papis--doc-get doc "title"))
+         (author (papis--doc-get doc "author"))
+         (year (papis--doc-get doc "year")))
+    (org-insert-heading)
+    (insert (format "[[papis+doi:%s][%s]]"
+                    (papis--doc-get doc "doi")
+                    title))
+    (insert "\n")
+    (insert (format (concat ":PROPERTIES:\n"
+                            ":AUTHOR: %s\n"
+                            ":TITLE: %s\n"
+                            ":YEAR: %s\n"
+                            ":END:")
+                    author title year))))
+;; Paper sections:1 ends here
+
 
 
 ;; Its implementation is given below:
