@@ -172,7 +172,7 @@ the command is also available:
 #+begin_src emacs-lisp
 (defun papis--open-doc (doc)
   (split-window-horizontally)
-  (find-file (ivy-read "file: " (papis--get-file-paths doc))))
+  (find-file (completing-read "file: " (papis--get-file-paths doc))))
 
 (defun papis-open (query)
   (@papis-query)
@@ -239,7 +239,7 @@ The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
          (formatted-results (mapcar papis-ivy-format-function results))
          (ivy-add-newline-after-prompt t))
     (cdr (assoc
-          (ivy-read "Select an entry: " formatted-results)
+          (completing-read "Select an entry: " formatted-results)
           formatted-results))))
 #+end_src
 ** Org-links
@@ -323,7 +323,7 @@ We define the link
   (@papis-query)
   (let ((doc (papis-ivy query)))
     (insert (format "[[file:%s][%s]]"
-                    (ivy-read "file: " (papis--get-file-paths doc))
+                    (completing-read "file: " (papis--get-file-paths doc))
                     (papis--doc-get doc "title")))))
 
 #+end_src
@@ -394,7 +394,7 @@ Its implementation is given below:
            (files (papis--get-file-paths doc)))
       (pcase (length files)
         (1 (car files))
-        (_ (ivy-read "" files)))))
+        (_ (completing-read "" files)))))
 #+end_src
 *** Citations
 In general it is recommended to use the citation mechanisms of

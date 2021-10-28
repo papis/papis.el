@@ -134,7 +134,7 @@
 ;; [[file:README.org::*=papis-open=][=papis-open=:1]]
 (defun papis--open-doc (doc)
   (split-window-horizontally)
-  (find-file (ivy-read "file: " (papis--get-file-paths doc))))
+  (find-file (completing-read "file: " (papis--get-file-paths doc))))
 
 (defun papis-open (query)
   (@papis-query)
@@ -205,7 +205,7 @@
          (formatted-results (mapcar papis-ivy-format-function results))
          (ivy-add-newline-after-prompt t))
     (cdr (assoc
-          (ivy-read "Select an entry: " formatted-results)
+          (completing-read "Select an entry: " formatted-results)
           formatted-results))))
 ;; ivy:1 ends here
 
@@ -289,7 +289,7 @@
   (@papis-query)
   (let ((doc (papis-ivy query)))
     (insert (format "[[file:%s][%s]]"
-                    (ivy-read "file: " (papis--get-file-paths doc))
+                    (completing-read "file: " (papis--get-file-paths doc))
                     (papis--doc-get doc "title")))))
 ;; =papis=:2 ends here
 
@@ -333,7 +333,7 @@
            (files (papis--get-file-paths doc)))
       (pcase (length files)
         (1 (car files))
-        (_ (ivy-read "" files)))))
+        (_ (completing-read "" files)))))
 ;; Open pdfs:2 ends here
 
 ;; Citations
