@@ -347,8 +347,30 @@
   (@papis-query)
   (let* ((doc (papis-ivy query))
          (ref (papis--get-ref doc)))
-    (insert (format "cite:%s" ref))))
+    (insert (format "[cite:@%s]" ref))))
 ;; Citations:1 ends here
+
+
+
+;; and we will need also a way of listing all the keys of the document
+;; for further functions. I took this from the good =citar= package
+
+
+;; [[file:README.org::*Citations][Citations:2]]
+(defun papis-org-list-keys ()
+  "List citation keys in the org buffer."
+  (let ((org-tree (org-element-parse-buffer)))
+    (delete-dups
+     (org-element-map org-tree 'citation-reference
+       (lambda (r) (org-element-property :key r))
+       org-tree))))
+;; Citations:2 ends here
+
+
+
+;; #+RESULTS: references-to-bibtex-python-script
+
+
 
 ;; [[file:README.org::*Convert references into bibtex entries][Convert references into bibtex entries:2]]
 (defvar papis--refs-to-bibtex-script
@@ -409,7 +431,7 @@ for d in docs:
      (format "#+begin_src bibtex %s :tangle %s\n"
              exports
              tangle-file)))
-  (let* ((refs (org-ref-get-bibtex-keys))
+  (let* ((refs (papis-org-list-keys))
          (queries (mapcar (lambda (r) (format "ref:\"%s\"" r))
                           refs)))
     (insert (papis--refs-to-bibtex queries)))
