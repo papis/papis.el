@@ -151,7 +151,9 @@
 ;; [[file:README.org::*=papis-notes=][=papis-notes=:1]]
 (defun papis-notes (doc)
   (interactive (list (papis--read-doc)))
-  (let ((folder (papis--cmd (format "list %s" (papis--id-query doc)) t))
+  (let (
+        ;; (folder (papis--cmd (format "list %s" (papis--id-query doc)) t))
+        (folder (papis--doc-get-folder doc))
         (maybe-notes (papis--doc-get doc "notes")))
     (when maybe-notes
       (find-file (f-join folder maybe-notes)))))
