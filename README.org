@@ -25,9 +25,6 @@ and it might just completely change in the future.
 I have implemented some functions that I use in my day-to-day
 research and worfklow.
 
-There is a `papis-ivy` function to open and so on,
-and org mode links.
-
 At some point it will get documented...
 
 * Implementation
@@ -36,7 +33,7 @@ At some point it will get documented...
     :header-args:emacs-lisp+: :comments both
     :header-args:emacs-lisp+: :results silent
   :END:
-=papis.el= is written as a literate program cite:LiteratePrograKnuth1984.
+=papis.el= is written as a literate program [cite:@LiteratePrograKnuth1984].
 ** Generalities
 
 - We interact with papis through the papis' json exporter.
@@ -64,13 +61,13 @@ The libraries that we will need are therefore:
    virtual environment"
   :type 'string)
 
-(defcustom papis-ivy-format-function
-  #'papis-default-ivy-format-function
+(defcustom papis-read-format-function
+  #'papis-default-read-format-function
   "Function taking a papis document (hashmap) and outputing a
-   string representation of it to be fed into ivy.")
+   string representation of it to be fed into the reader.")
 
 (defcustom papis--query-prompt
-  "sPapis Query: "
+  "Papis Query: "
   "The prompt to show users in order to accept a query
   "
   :type 'string)
@@ -122,6 +119,7 @@ You can set the main library used in papis by setting
 Most papis commands will need a query, the macro =@papis-query= will
 take care of having the same query prompt in all commands.
 #+begin_src emacs-lisp
+
 (defmacro @papis-query ()
   `(interactive ,papis--query-prompt))
 #+end_src
@@ -170,13 +168,15 @@ the command is also available:
 
 
 #+begin_src emacs-lisp
-(defun papis--open-doc (doc)
-  (split-window-horizontally)
-  (find-file (completing-read "file: " (papis--get-file-paths doc))))
-
-(defun papis-open (query)
-  (@papis-query)
-  (papis--open-doc (papis-ivy query)))
+(defun papis-open (doc)
+  (interactive (list (papis--read-doc)))
+  (let* ((files (papis--get-file-paths doc))
+         (file (pcase (length files)
+                 (1 (car files))
+                 (0 (error "Doc has no files"))
+                 (_ (completing-read "file: " files)))))
+    (split-window-horizontally)
+    (find-file file)))
 #+End_src
 
 
@@ -186,10 +186,9 @@ You can edit the info files using =papis-edit=,
 notice that commiting the
 Implement waiting after editing the file like
 #+begin_src emacs-lisp
-(defun papis-edit (query)
-  (@papis-query)
-  (let* ((doc (papis-ivy query))
-         (folder (papis--doc-get-folder doc))
+(defun papis-edit (doc)
+  (interactive (list (papis--read-doc)))
+  (let* ((folder (papis--doc-get-folder doc))
          (info (concat folder "/" "info.yaml")))
     (find-file info)
     (papis--doc-update doc)))
@@ -219,10 +218,10 @@ Implement waiting after editing the file like
                       query
                       outfile)))
 #+end_src
-** ivy
+** Document reader
 The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
 #+begin_src emacs-lisp
-(defun papis-default-ivy-format-function (doc)
+(defun papis-default-read-format-function (doc)
   `(
     ,(format "%s\n\t%s\n\t«%s» +%s %s"
              (papis--doc-get doc "title")
@@ -233,100 +232,51 @@ The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
     .
     ,doc))
 
-(defun papis-ivy (query)
-  (@papis-query)
-  (let* ((results (papis-query query))
-         (formatted-results (mapcar papis-ivy-format-function results))
-         (ivy-add-newline-after-prompt t))
+(defun papis--read-doc ()
+  (let* ((results (papis-query (read-string papis--query-prompt
+                                            nil t)))
+         (formatted-results (mapcar papis-read-format-function results)))
     (cdr (assoc
           (completing-read "Select an entry: " formatted-results)
           formatted-results))))
+
+(defun papis--from-id (papis-id)
+  (let* ((query (format "papis_id:%s" papis-id))
+         (results (papis-query query)))
+    (pcase (length results)
+      (0 (error "No documents found with papis_id '%s'"
+                papis-id))
+      (1 (car results))
+      (_ (error "Too many documents (%d) found with papis_id '%s'"
+                (length results) papis-id)))))
 #+end_src
+
 ** Org-links
-*** =papis+doi=
-
-We define the link
-#+begin_src emacs-lisp
-(org-link-set-parameters "papis+doi"
-                         :follow #'ol-papis+doi-open
-                         :export #'ol-papis+doi-export
-                         :complete #'org-link-papis-store-doi)
-
-(defun ol-papis+doi-open (doi)
-  "Open papis document by doi"
-  (papis-open (format "doi:%s" doi)))
-
-(defun ol-papis+doi-export (doi description format)
-  (cond
-   ((eq format 'html) (format (concat "<a target='_blank'"
-                                      " href='https://doi.org/%s'>"
-                                      "%s"
-                                      "</a>") doi description))
-   ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
-   ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
-   (t description)))
-#+end_src
-
 *** =papis=
 
 #+begin_src emacs-lisp
 (org-link-set-parameters "papis"
-                         :follow #'ol-papis-open
-                         :export #'ol-papis-export)
+                         :follow (lambda (papis-id)
+                                   (papis-open (papis--from-id papis-id)))
+                         :export #'ol-papis-export
+                         :complete (lambda (&optional arg)
+                                     (format "papis:%s"
+                                             (papis--doc-get (papis--read-doc)
+                                                             "papis_id"))))
 
-(defun ol-papis-open (link)
-  (let ((doc (papis-ivy link)))
+(defun ol-papis-export (papis-id description format)
+  (let ((doi (papis--from-id papis-id)))
     (cond
-     (doc (papis--open-doc doc))
-     (t (error "No doc found")))))
-
-(defun ol-papis-export (link description format)
-  (let ((doi (papis-get-doi description)))
-    (cond
-     ((eq format 'html) (format (concat "<a target='_blank'"
-                                        " href='https://doi.org/%s'>"
-                                        "%s"
-                                        "</a>") doi description))
-     ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
-     ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
-     (t description))))
-
-(defun papis-get-doi (query)
-  (@papis-query)
-  (let ((papis-command (concat "papis list --format "
-                               "{doc[doi]}"
-                               " --all "
-                               "'" query "'")))
-    (car (s-lines
-          (shell-command-to-string
-           papis-command)))))
-
-(defun org-papis-store-doi-link (query)
-  (@papis-query)
-  (let ((doc (papis-ivy query)))
-    (insert (format "[[papis+doi:%s][%s]]"
-                    (papis--doc-get doc "doi")
-                    (papis--doc-get doc "title")))))
-
-(defun org-papis-store-url-link (query)
-  (@papis-query)
-  (let ((doc (papis-ivy query)))
-    (insert (format "[[%s][%s]]"
-                    (papis--doc-get doc "url")
-                    (papis--doc-get doc "title")))))
+      ((eq format 'html) (format (concat "<a target='_blank'"
+                                         " href='https://doi.org/%s'>"
+                                         "%s"
+                                         "</a>") doi description))
+      ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
+      ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
+      (t description))))
 
 #+end_src
 
-
-#+begin_src emacs-lisp
-(defun org-papis-store-file-link (query)
-  (@papis-query)
-  (let ((doc (papis-ivy query)))
-    (insert (format "[[file:%s][%s]]"
-                    (completing-read "file: " (papis--get-file-paths doc))
-                    (papis--doc-get doc "title")))))
-
-#+end_src
 
 
 
@@ -338,24 +288,22 @@ with some properties so that you can use org-mode's colum mode.
 You can use the following function to create a link with properties
 
 #+begin_src emacs-lisp
-(defun org-papis-doi-heading (query)
-  (@papis-query)
-  (let* ((doc (papis-ivy query))
-         (title (papis--doc-get doc "title"))
-         (author (papis--doc-get doc "author"))
-         (year (papis--doc-get doc "year")))
+(defun papis-org-insert-heading (doc)
+  (interactive (list (papis--read-doc)))
+  (let ((title (papis--doc-get doc "title"))
+        (author (papis--doc-get doc "author"))
+        (year (papis--doc-get doc "year"))
+        (doi (papis--doc-get doc "doi"))
+        (papis-id (papis--doc-get doc "papis_id")))
     (org-insert-heading)
-    (insert (format "[[papis+doi:%s][%s]]"
-                    (papis--doc-get doc "doi")
-                    title))
-    (insert "\n")
-    (insert (format (concat ":PROPERTIES:\n"
-                            ":AUTHOR: %s\n"
-                            ":TITLE: %s\n"
-                            ":YEAR: %s\n"
-                            ":END:")
-                    author title year))))
+    (insert (format "[[papis:%s][%s]]" papis-id title))
+    (org-set-property "PAPIS_ID" papis-id)
+    (org-set-property "AUTHOR" author)
+    (org-set-property "TITLE" title)
+    (org-set-property "YEAR" (format "%s" year))
+    (org-set-property "DOI" doi)))
 #+end_src
+
 
 A recommendation can be to write as the =COLUMNS=
 variable and the =PROPERTIES= like so
@@ -402,11 +350,12 @@ In general it is recommended to use the citation mechanisms of
 directly from =papis=, you can use the function
 
 #+begin_src emacs-lisp
-(defun papis-org-ref-insert-citation-from-query (query)
-  (@papis-query)
-  (let* ((doc (papis-ivy query))
-         (ref (papis--get-ref doc)))
-    (insert (format "[cite:@%s]" ref))))
+(defun papis-insert-citation (doc)
+  (interactive (list (papis--read-doc)))
+  (let* ((ref (papis--get-ref doc)))
+    (if (fboundp 'citar-insert-citation)
+        (citar-insert-citation (list ref))
+      (insert (format "[cite:@%s]" ref)))))
 #+end_src
 
 and we will need also a way of listing all the keys of the document
