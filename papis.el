@@ -27,13 +27,13 @@
    virtual environment"
   :type 'string)
 
-(defcustom papis-ivy-format-function
-  #'papis-default-ivy-format-function
+(defcustom papis-read-format-function
+  #'papis-default-read-format-function
   "Function taking a papis document (hashmap) and outputing a
-   string representation of it to be fed into ivy.")
+   string representation of it to be fed into the reader.")
 
 (defcustom papis--query-prompt
-  "sPapis Query: "
+  "Papis Query: "
   "The prompt to show users in order to accept a query
   "
   :type 'string)
@@ -79,6 +79,7 @@
 ;; take care of having the same query prompt in all commands.
 
 ;; [[file:README.org::*Introduction][Introduction:1]]
+
 (defmacro @papis-query ()
   `(interactive ,papis--query-prompt))
 ;; Introduction:1 ends here
@@ -132,13 +133,15 @@
 
 
 ;; [[file:README.org::*=papis-open=][=papis-open=:1]]
-(defun papis--open-doc (doc)
-  (split-window-horizontally)
-  (find-file (completing-read "file: " (papis--get-file-paths doc))))
-
-(defun papis-open (query)
-  (@papis-query)
-  (papis--open-doc (papis-ivy query)))
+(defun papis-open (doc)
+  (interactive (list (papis--read-doc)))
+  (let* ((files (papis--get-file-paths doc))
+         (file (pcase (length files)
+                 (1 (car files))
+                 (0 (error "Doc has no files"))
+                 (_ (completing-read "file: " files)))))
+    (split-window-horizontally)
+    (find-file file)))
 ;; =papis-open=:1 ends here
 
 ;; TODO =papis-edit=
@@ -148,10 +151,9 @@
 ;; Implement waiting after editing the file like
 
 ;; [[file:README.org::*=papis-edit=][=papis-edit=:1]]
-(defun papis-edit (query)
-  (@papis-query)
-  (let* ((doc (papis-ivy query))
-         (folder (papis--doc-get-folder doc))
+(defun papis-edit (doc)
+  (interactive (list (papis--read-doc)))
+  (let* ((folder (papis--doc-get-folder doc))
          (info (concat folder "/" "info.yaml")))
     (find-file info)
     (papis--doc-update doc)))
@@ -184,11 +186,11 @@
                       outfile)))
 ;; =papis-export=:1 ends here
 
-;; ivy
+;; Document reader
 ;; The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
 
-;; [[file:README.org::*ivy][ivy:1]]
-(defun papis-default-ivy-format-function (doc)
+;; [[file:README.org::*Document reader][Document reader:1]]
+(defun papis-default-read-format-function (doc)
   `(
     ,(format "%s\n\t%s\n\t«%s» +%s %s"
              (papis--doc-get doc "title")
@@ -199,99 +201,51 @@
     .
     ,doc))
 
-(defun papis-ivy (query)
-  (@papis-query)
-  (let* ((results (papis-query query))
-         (formatted-results (mapcar papis-ivy-format-function results))
-         (ivy-add-newline-after-prompt t))
+(defun papis--read-doc ()
+  (let* ((results (papis-query (read-string papis--query-prompt
+                                            nil t)))
+         (formatted-results (mapcar papis-read-format-function results)))
     (cdr (assoc
           (completing-read "Select an entry: " formatted-results)
           formatted-results))))
-;; ivy:1 ends here
 
-;; =papis+doi=
+(defun papis--from-id (papis-id)
+  (let* ((query (format "papis_id:%s" papis-id))
+         (results (papis-query query)))
+    (pcase (length results)
+      (0 (error "No documents found with papis_id '%s'"
+                papis-id))
+      (1 (car results))
+      (_ (error "Too many documents (%d) found with papis_id '%s'"
+                (length results) papis-id)))))
 
-;; We define the link
+;; Document reader:1 ends here
 
-;; [[file:README.org::*=papis+doi=][=papis+doi=:1]]
-(org-link-set-parameters "papis+doi"
-                         :follow #'ol-papis+doi-open
-                         :export #'ol-papis+doi-export
-                         :complete #'org-link-papis-store-doi)
-
-(defun ol-papis+doi-open (doi)
-  "Open papis document by doi"
-  (papis-open (format "doi:%s" doi)))
-
-(defun ol-papis+doi-export (doi description format)
-  (cond
-   ((eq format 'html) (format (concat "<a target='_blank'"
-                                      " href='https://doi.org/%s'>"
-                                      "%s"
-                                      "</a>") doi description))
-   ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
-   ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
-   (t description)))
-;; =papis+doi=:1 ends here
-
+;; Org-links
 ;; =papis=
-
 
 ;; [[file:README.org::*=papis=][=papis=:1]]
 (org-link-set-parameters "papis"
-                         :follow #'ol-papis-open
-                         :export #'ol-papis-export)
+                         :follow (lambda (papis-id)
+                                   (papis-open (papis--from-id papis-id)))
+                         :export #'ol-papis-export
+                         :complete (lambda (&optional arg)
+                                     (format "papis:%s"
+                                             (papis--doc-get (papis--read-doc)
+                                                             "papis_id"))))
 
-(defun ol-papis-open (link)
-  (let ((doc (papis-ivy link)))
+(defun ol-papis-export (papis-id description format)
+  (let ((doi (papis--from-id papis-id)))
     (cond
-     (doc (papis--open-doc doc))
-     (t (error "No doc found")))))
+      ((eq format 'html) (format (concat "<a target='_blank'"
+                                         " href='https://doi.org/%s'>"
+                                         "%s"
+                                         "</a>") doi description))
+      ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
+      ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
+      (t description))))
 
-(defun ol-papis-export (link description format)
-  (let ((doi (papis-get-doi description)))
-    (cond
-     ((eq format 'html) (format (concat "<a target='_blank'"
-                                        " href='https://doi.org/%s'>"
-                                        "%s"
-                                        "</a>") doi description))
-     ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
-     ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
-     (t description))))
-
-(defun papis-get-doi (query)
-  (@papis-query)
-  (let ((papis-command (concat "papis list --format "
-                               "{doc[doi]}"
-                               " --all "
-                               "'" query "'")))
-    (car (s-lines
-          (shell-command-to-string
-           papis-command)))))
-
-(defun org-papis-store-doi-link (query)
-  (@papis-query)
-  (let ((doc (papis-ivy query)))
-    (insert (format "[[papis+doi:%s][%s]]"
-                    (papis--doc-get doc "doi")
-                    (papis--doc-get doc "title")))))
-
-(defun org-papis-store-url-link (query)
-  (@papis-query)
-  (let ((doc (papis-ivy query)))
-    (insert (format "[[%s][%s]]"
-                    (papis--doc-get doc "url")
-                    (papis--doc-get doc "title")))))
 ;; =papis=:1 ends here
-
-;; [[file:README.org::*=papis=][=papis=:2]]
-(defun org-papis-store-file-link (query)
-  (@papis-query)
-  (let ((doc (papis-ivy query)))
-    (insert (format "[[file:%s][%s]]"
-                    (completing-read "file: " (papis--get-file-paths doc))
-                    (papis--doc-get doc "title")))))
-;; =papis=:2 ends here
 
 ;; Paper sections
 ;; When doing research, often you would like to create some notes on every paper
@@ -302,23 +256,20 @@
 
 
 ;; [[file:README.org::*Paper sections][Paper sections:1]]
-(defun org-papis-doi-heading (query)
-  (@papis-query)
-  (let* ((doc (papis-ivy query))
-         (title (papis--doc-get doc "title"))
-         (author (papis--doc-get doc "author"))
-         (year (papis--doc-get doc "year")))
+(defun papis-org-insert-heading (doc)
+  (interactive (list (papis--read-doc)))
+  (let ((title (papis--doc-get doc "title"))
+        (author (papis--doc-get doc "author"))
+        (year (papis--doc-get doc "year"))
+        (doi (papis--doc-get doc "doi"))
+        (papis-id (papis--doc-get doc "papis_id")))
     (org-insert-heading)
-    (insert (format "[[papis+doi:%s][%s]]"
-                    (papis--doc-get doc "doi")
-                    title))
-    (insert "\n")
-    (insert (format (concat ":PROPERTIES:\n"
-                            ":AUTHOR: %s\n"
-                            ":TITLE: %s\n"
-                            ":YEAR: %s\n"
-                            ":END:")
-                    author title year))))
+    (insert (format "[[papis:%s][%s]]" papis-id title))
+    (org-set-property "PAPIS_ID" papis-id)
+    (org-set-property "AUTHOR" author)
+    (org-set-property "TITLE" title)
+    (org-set-property "YEAR" (format "%s" year))
+    (org-set-property "DOI" doi)))
 ;; Paper sections:1 ends here
 
 
@@ -343,11 +294,12 @@
 
 
 ;; [[file:README.org::*Citations][Citations:1]]
-(defun papis-org-ref-insert-citation-from-query (query)
-  (@papis-query)
-  (let* ((doc (papis-ivy query))
-         (ref (papis--get-ref doc)))
-    (insert (format "[cite:@%s]" ref))))
+(defun papis-insert-citation (doc)
+  (interactive (list (papis--read-doc)))
+  (let* ((ref (papis--get-ref doc)))
+    (if (fboundp 'citar-insert-citation)
+        (citar-insert-citation (list ref))
+      (insert (format "[cite:@%s]" ref)))))
 ;; Citations:1 ends here
 
 
