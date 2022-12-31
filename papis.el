@@ -49,6 +49,16 @@
 ;; [[file:README.org::*Document][Document:1]]
 (defun papis--doc-get-folder (doc)
   (papis--doc-get doc "_papis_local_folder"))
+
+(defun papis--id (doc)
+  (let ((id (papis--doc-get doc "papis_id")))
+    (unless id
+      (error "Document '%s' does not have an id!"
+             doc))
+    id))
+
+(defun papis--id-query (doc)
+  (format "papis_id:%s" (papis--id doc)))
 ;; Document:1 ends here
 
 ;; [[file:README.org::*Document][Document:2]]
@@ -138,6 +148,15 @@
     (find-file file)))
 ;; =papis-open=:1 ends here
 
+;; [[file:README.org::*=papis-notes=][=papis-notes=:1]]
+(defun papis-notes (doc)
+  (interactive (list (papis--read-doc)))
+  (let ((folder (papis--cmd (format "list %s" (papis--id-query doc)) t))
+        (maybe-notes (papis--doc-get doc "notes")))
+    (when maybe-notes
+      (find-file (f-join folder maybe-notes)))))
+;; =papis-notes=:1 ends here
+
 
 
 ;; You can edit the info files using =papis-edit=,
@@ -191,7 +210,7 @@
 
 (defun papis--read-doc ()
   (let* ((results (papis-query (read-string papis--query-prompt
-                                            nil t)))
+                                            nil 'papis)))
          (formatted-results (mapcar papis-read-format-function results)))
     (cdr (assoc
           (completing-read "Select an entry: " formatted-results)
@@ -209,6 +228,7 @@
 ;; Document reader:1 ends here
 
 ;; [[file:README.org::*=papis=][=papis=:1]]
+(require 'ol-doi)
 (org-link-set-parameters "papis"
                          :follow (lambda (papis-id)
                                    (papis-open (papis--from-id papis-id)))
@@ -216,18 +236,19 @@
                          :complete (lambda (&optional arg)
                                      (format "papis:%s"
                                              (papis--doc-get (papis--read-doc)
-                                                             "papis_id"))))
+                                                             "papis_id")))
+                         :insert-description
+                         (lambda (link desc)
+                           (let* ((papis-id (string-replace "papis:"  "" link))
+                                  (doc (papis--from-id papis-id)))
+                             (papis--doc-get doc "title"))))
 
-(defun ol-papis-export (papis-id description format)
-  (let ((doi (papis--from-id papis-id)))
+(defun ol-papis-export (papis-id description format info)
+  (let* ((doc (papis--from-id papis-id))
+        (doi (papis--doc-get doc "doi"))
+        (url (papis--doc-get doc "url")))
     (cond
-      ((eq format 'html) (format (concat "<a target='_blank'"
-                                         " href='https://doi.org/%s'>"
-                                         "%s"
-                                         "</a>") doi description))
-      ((eq format 'md) (format "[%s](https://doi.org/%s)" description doi))
-      ((eq format 'org) (format "[[doi:%s][%s]]" doi description))
-      (t description))))
+      (doi (org-link-doi-export doi description format info)))))
 ;; =papis=:1 ends here
 
 
