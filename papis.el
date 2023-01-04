@@ -148,16 +148,46 @@
     (find-file file)))
 ;; =papis-open=:1 ends here
 
-;; [[file:README.org::*=papis-notes=][=papis-notes=:1]]
+;; [[file:README.org::*Notes][Notes:1]]
+(defcustom papis-edit-new-notes-hook nil
+  "Hook for when a new note file is being edited.
+
+   The argument of the hook is the respective document."
+  :type 'hook)
+
+(defun papis--default-notes-name ()
+  (string-replace "\n" "" (papis--cmd "config notes-name" t)))
+
+(defun papis--notes-path (doc)
+  "Return the notes path to the given document.
+   This does not make sure that the notes file exists,
+   it just gets a path that hsould be there."
+  (let ((query (papis--id-query doc)))
+    (papis--cmd (format "list --notes %s"
+                        query)
+                t)))
+
+(defun papis--ensured-notes-path (doc)
+  (let ((maybe-notes (papis--doc-get doc "notes"))
+        (id-query (papis--id-query doc)))
+    (unless maybe-notes
+      (setq maybe-notes (papis--default-notes-name))
+      ;; will this work on windows? someone cares?
+      (papis--cmd (format "edit --notes --editor echo %s" id-query)))
+    (string-replace "\n" ""
+                    (papis--cmd (format "list --notes %s" id-query)
+                                t))))
+
 (defun papis-notes (doc)
   (interactive (list (papis--read-doc)))
-  (let (
-        ;; (folder (papis--cmd (format "list %s" (papis--id-query doc)) t))
-        (folder (papis--doc-get-folder doc))
-        (maybe-notes (papis--doc-get doc "notes")))
-    (when maybe-notes
-      (find-file (f-join folder maybe-notes)))))
-;; =papis-notes=:1 ends here
+  (let ((has-notes-p (papis--doc-get doc "notes")))
+    (let ((notes-path (papis--ensured-notes-path doc)))
+      (unless has-notes-p
+        (with-current-buffer (find-file notes-path)
+          (run-hook-with-args 'papis-edit-new-notes-hook
+                              doc)))
+      (find-file notes-path))))
+;; Notes:1 ends here
 
 
 

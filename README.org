@@ -1,31 +1,85 @@
-* Papis.el
+#+title: Papis.el
+
+* Introduction
 
 [[https://papis.github.io/images/emacs-papis.gif]]
 
 ** Motivation
 
-The main motivation of this package is to make it
-easy to interact with ~org-mode~ and
-~papis~.
+The main motivation of this package is to make it easy to interact
+with =emacs= and =papis=, with a focus to =org-mode=.
 
-We do not want to reinvent the wheel, so this project
-should be thought to play well with the very good
-package [[https://github.com/jkitchin/org-ref][org-ref]].
-
+If possible, we don't want to reinvent the wheel, so this project
+should try to play well with the very good packages like
+=org-citation=, [[https://github.com/jkitchin/org-ref][org-ref]], =org-noter=, =citar=...
 
 ** Disclaimer
 
-If you're an emacs lisp hacker, feel free to chip in.
-Otherwise this project should be treated as β software
-and it might just completely change in the future.
-
+If you're an emacs lisp hacker, feel free to chip in.  Otherwise this
+project should be treated as β software and it might just completely
+change in the future.
 
 ** What is implemented
 
-I have implemented some functions that I use in my day-to-day
-research and worfklow.
+I have implemented some functions that I use in my day-to-day research
+and worfklow.
 
-At some point it will get documented...
+At some point they will get better documented...
+
+** [[https://melpa.org/#/org-noter][org-noter]] compatibility
+
+We have found that papis works quite well with =org-noter=
+since =org-noter= is quite simply designed.
+You can get away with the following configuration
+
+#+begin_src emacs-lisp
+(setq org-noter-notes-search-path '("./"))
+(setq org-noter-default-notes-file-names '("notes.org"))
+#+end_src
+
+When opening a =pdf= file of a papis document you can just type
+=M-x org-noter= and if there is =notes.org= file in there
+then =org-noter= will open a session for you.
+
+Of course your notes file should be an org file, which you can do by
+setting [[https://papis.readthedocs.io/en/latest/configuration.html#config-settings-notes-name][notes-name]] equal to =notes.org= in your papis configuration.
+
+
+
+** [[https://github.com/nobiot/org-transclusion][org-transclusion]] compatibility
+
+You can put this into your configuration file in order to let =org-transclusion=
+know about papis
+
+#+begin_src emacs-lisp
+(require 'cl-lib)
+(defun papis-org-transclusion-add-papis-id (link plist)
+  (when (string= "papis" (org-element-property :type link))
+    (let* ((id (org-element-property :path link))
+           (doc (papis--from-id id))
+           (notes-path (papis--ensured-notes-path doc))
+           (new-link (with-temp-buffer
+                       (insert "file:")
+                       (insert notes-path)
+                       (beginning-of-buffer)
+                       (org-element-link-parser))))
+      (org-transclusion-add-org-file new-link plist))))
+(cl-pushnew 'papis-org-transclusion-add-papis-id
+            org-transclusion-add-functions)
+#+end_src
+
+and now you can have a document with many notes of a topic and then
+
+#+begin_src org
+,* Important papers
+,#+transclude: [[papis:d27eac97f9dab8e63d1ceeddc41bb8ff][This and that paper]] :expand-links 
+,#+transclude: [[papis:0858c8b2885089446f1647ad9bb80a41][A fifth-order perturbation comparison of electron correlation theories]] :expand-links 
+#+end_src
+
+
+
+
+
 
 * Implementation
   :PROPERTIES:
@@ -43,34 +97,42 @@ The libraries that we will need are therefore:
 #+begin_src emacs-lisp :noweb yes
 (require 'ol)
 (require 'json)
+
+(defgroup papis nil
+  "Official papis package for emacs"
+  :group 'papis
+  :prefix "papis-"
+  :link '(url-link :tag "Github"
+          "https://github.com/papis/papis.el"))
 #+end_src
 
 ** Variables
 
 #+begin_src emacs-lisp
-(defcustom papis--temp-output-file
-  nil
+(defvar papis--temp-output-file nil
   "This variable holds the papis temporary output file where the json
-  output is dumped"
-  :type 'string)
+  output is dumped")
 
 (defcustom papis-binary-path
   "papis"
   "The binary path for papis.
    You might have papis installed for instance in some
    virtual environment"
-  :type 'string)
+  :type 'string
+  :group 'papis)
 
 (defcustom papis-read-format-function
   #'papis-default-read-format-function
   "Function taking a papis document (hashmap) and outputing a
-   string representation of it to be fed into the reader.")
+   string representation of it to be fed into the reader."
+  :group 'papis)
 
 (defcustom papis--query-prompt
   "Papis Query: "
   "The prompt to show users in order to accept a query
   "
-  :type 'string)
+  :type 'string
+  :group 'papis)
 #+end_src
 
 You can set the
@@ -88,7 +150,8 @@ You can set the main library used in papis by setting
    If it is set to nil then the default library of your system will
    be used.
   "
-  :type 'string)
+  :type 'string
+  :group 'papis)
  #+end_src
 
 ** Document
