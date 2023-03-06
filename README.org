@@ -77,6 +77,20 @@ and now you can have a document with many notes of a topic and then
 #+end_src
 
 
+And to add these kind of lines you can use this function
+
+#+begin_src emacs-lisp
+(defun papis-transclusion-insert (doc)
+  (interactive (list (papis--read-doc)))
+  (insert "#+transclude: [[papis:")
+  (insert (papis--id doc))
+  (insert "][")
+  (insert (papis--doc-get doc "title"))
+  (insert "]]")
+  (insert " :expand-links")
+  (org-transclusion-add))
+#+end_src
+
 
 
 
