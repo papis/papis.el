@@ -8,32 +8,40 @@
 ;; [[file:README.org::*Generalities][Generalities:1]]
 (require 'ol)
 (require 'json)
+
+(defgroup papis nil
+  "Official papis package for emacs"
+  :group 'papis
+  :prefix "papis-"
+  :link '(url-link :tag "Github"
+          "https://github.com/papis/papis.el"))
 ;; Generalities:1 ends here
 
 ;; [[file:README.org::*Variables][Variables:1]]
-(defcustom papis--temp-output-file
-  nil
+(defvar papis--temp-output-file nil
   "This variable holds the papis temporary output file where the json
-  output is dumped"
-  :type 'string)
+  output is dumped")
 
 (defcustom papis-binary-path
   "papis"
   "The binary path for papis.
    You might have papis installed for instance in some
    virtual environment"
-  :type 'string)
+  :type 'string
+  :group 'papis)
 
 (defcustom papis-read-format-function
   #'papis-default-read-format-function
   "Function taking a papis document (hashmap) and outputing a
-   string representation of it to be fed into the reader.")
+   string representation of it to be fed into the reader."
+  :group 'papis)
 
 (defcustom papis--query-prompt
   "Papis Query: "
   "The prompt to show users in order to accept a query
   "
-  :type 'string)
+  :type 'string
+  :group 'papis)
 ;; Variables:1 ends here
 
 ;; [[file:README.org::*=papis-library=][=papis-library=:2]]
@@ -43,7 +51,8 @@
    If it is set to nil then the default library of your system will
    be used.
   "
-  :type 'string)
+  :type 'string
+  :group 'papis)
 ;; =papis-library=:2 ends here
 
 ;; [[file:README.org::*Document][Document:1]]
