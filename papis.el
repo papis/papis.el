@@ -1,4 +1,4 @@
-
+;; Generalities
 
 ;; - We interact with papis through the papis' json exporter.
 ;; - We use ~org-links~ to get information directly from papis.
@@ -16,6 +16,9 @@
   :link '(url-link :tag "Github"
           "https://github.com/papis/papis.el"))
 ;; Generalities:1 ends here
+
+;; Variables
+
 
 ;; [[file:README.org::*Variables][Variables:1]]
 (defvar papis--temp-output-file nil
@@ -55,6 +58,8 @@
   :group 'papis)
 ;; =papis-library=:2 ends here
 
+;; Document
+
 ;; [[file:README.org::*Document][Document:1]]
 (defun papis--doc-get-folder (doc)
   (papis--doc-get doc "_papis_local_folder"))
@@ -88,7 +93,7 @@
     (papis--cmd (concat "update --doc-folder " folder))))
 ;; Document:3 ends here
 
-
+;; Introduction
 ;; Most papis commands will need a query, the macro =@papis-query= will
 ;; take care of having the same query prompt in all commands.
 
@@ -97,9 +102,9 @@
   `(interactive ,papis--query-prompt))
 ;; Introduction:1 ends here
 
-
-;; The main interface with papis commands will be =papis--cmd=
-;; which is a function intended for library writers.
+;; Issuing commands to the shell
+;;  The main interface with papis commands will be =papis--cmd=
+;;  which is a function intended for library writers.
 
 ;; [[file:README.org::*Issuing commands to the shell][Issuing commands to the shell:1]]
 (defun papis--cmd (cmd &optional with-stdout)
@@ -111,10 +116,10 @@
                  #'shell-command-to-string
                #'shell-command)))
     (funcall sys
-     (format "%s %s %s" papis-binary-path lib-flags cmd))))
+             (format "%s %s %s" papis-binary-path lib-flags cmd))))
 ;; Issuing commands to the shell:1 ends here
 
-
+;; =papis-query=
 
 ;; A papis document object is represented in =papis.el=
 ;; as a =hashtable=, and the command that turns a query
@@ -138,7 +143,7 @@
     (json-read-file papis--temp-output-file)))
 ;; =papis-query=:1 ends here
 
-
+;; =papis-open=
 
 ;; The cornerstone of papis is opening documents, in emacs
 ;; the command is also available:
@@ -156,6 +161,9 @@
     (split-window-horizontally)
     (find-file file)))
 ;; =papis-open=:1 ends here
+
+;; Notes
+
 
 ;; [[file:README.org::*Notes][Notes:1]]
 (defcustom papis-edit-new-notes-hook nil
@@ -187,18 +195,25 @@
                     (papis--cmd (format "list --notes %s" id-query)
                                 t))))
 
-(defun papis-notes (doc)
-  (interactive (list (papis--read-doc)))
+(defun papis-notes (doc &optional run-hook)
+  """
+  Create notes for a document or open the note
+  DOC is the papis document.
+  Whenever RUN-HOOK is non-nil, the hook for the notes
+  will be ran.
+  """
+  (interactive (list (papis--read-doc)
+                     current-prefix-arg))
   (let ((has-notes-p (papis--doc-get doc "notes")))
     (let ((notes-path (papis--ensured-notes-path doc)))
-      (unless has-notes-p
+      (when (or (not has-notes-p) run-hook)
         (with-current-buffer (find-file notes-path)
           (run-hook-with-args 'papis-edit-new-notes-hook
                               doc)))
       (find-file notes-path))))
 ;; Notes:1 ends here
 
-
+;; TODO =papis-edit=
 
 ;; You can edit the info files using =papis-edit=,
 ;; notice that commiting the
@@ -213,6 +228,9 @@
     (papis--doc-update doc)))
 ;; =papis-edit=:1 ends here
 
+;; =papis-exec=
+
+
 ;; [[file:README.org::*=papis-exec=][=papis-exec=:1]]
 (defun papis-exec (python-file &optional arguments)
   (let ((fmt "exec %s %s"))
@@ -221,6 +239,9 @@
                         (or arguments ""))
                 t)))
 ;; =papis-exec=:1 ends here
+
+;; =papis-export=
+
 
 ;; [[file:README.org::*=papis-export=][=papis-export=:1]]
 (defun papis-json (query outfile)
@@ -234,7 +255,7 @@
                       outfile)))
 ;; =papis-export=:1 ends here
 
-
+;; Document reader
 ;; The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
 
 ;; [[file:README.org::*Document reader][Document reader:1]]
@@ -268,6 +289,9 @@
                 (length results) papis-id)))))
 ;; Document reader:1 ends here
 
+;; =papis=
+
+
 ;; [[file:README.org::*=papis=][=papis=:1]]
 (require 'ol-doi)
 (org-link-set-parameters "papis"
@@ -286,13 +310,13 @@
 
 (defun ol-papis-export (papis-id description format info)
   (let* ((doc (papis--from-id papis-id))
-        (doi (papis--doc-get doc "doi"))
-        (url (papis--doc-get doc "url")))
+         (doi (papis--doc-get doc "doi"))
+         (url (papis--doc-get doc "url")))
     (cond
       (doi (org-link-doi-export doi description format info)))))
 ;; =papis=:1 ends here
 
-
+;; Paper sections
 ;; When doing research, often you would like to create some notes on every paper
 ;; and write some sections with the section titles being links to the papers
 ;; with some properties so that you can use org-mode's colum mode.
@@ -323,16 +347,16 @@
 
 ;; [[file:README.org::*Open pdfs][Open pdfs:2]]
 (defun papis-org-ref-get-pdf-filename (key)
-    (interactive)
-    (let* ((docs (papis-query (format "ref:'%s'" key)))
-           (doc (car docs))
-           (files (papis--get-file-paths doc)))
-      (pcase (length files)
-        (1 (car files))
-        (_ (completing-read "" files)))))
+  (interactive)
+  (let* ((docs (papis-query (format "ref:'%s'" key)))
+         (doc (car docs))
+         (files (papis--get-file-paths doc)))
+    (pcase (length files)
+      (1 (car files))
+      (_ (completing-read "" files)))))
 ;; Open pdfs:2 ends here
 
-
+;; Citations
 ;; In general it is recommended to use the citation mechanisms of
 ;; =org-ref=, however, if for some reason you would like to cite
 ;; directly from =papis=, you can use the function
@@ -371,7 +395,7 @@
 
 ;; [[file:README.org::*Convert references into bibtex entries][Convert references into bibtex entries:2]]
 (defvar papis--refs-to-bibtex-script
-"
+  "
 import argparse
 import papis.api
 from papis.bibtex import to_bibtex
@@ -399,6 +423,9 @@ for d in docs:
       (write-file py-script))
     (papis-exec py-script (s-join " " refs))))
 ;; Convert references into bibtex entries:3 ends here
+
+;; The =papis-bibtex-refs= dynamic block
+
 
 ;; [[file:README.org::*The =papis-bibtex-refs= dynamic block][The =papis-bibtex-refs= dynamic block:1]]
 (defun papis-create-papis-bibtex-refs-dblock (bibfile)
@@ -431,6 +458,8 @@ for d in docs:
     (insert (papis--refs-to-bibtex queries)))
   (insert "#+end_src\n"))
 ;; The =papis-bibtex-refs= dynamic block:2 ends here
+
+;; End
 
 ;; [[file:README.org::*End][End:1]]
 (provide 'papis)

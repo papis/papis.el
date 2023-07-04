@@ -297,11 +297,18 @@ the command is also available:
                     (papis--cmd (format "list --notes %s" id-query)
                                 t))))
 
-(defun papis-notes (doc)
-  (interactive (list (papis--read-doc)))
+(defun papis-notes (doc &optional run-hook)
+  """
+  Create notes for a document or open the note
+  DOC is the papis document.
+  Whenever RUN-HOOK is non-nil, the hook for the notes
+  will be ran.
+  """
+  (interactive (list (papis--read-doc)
+                     current-prefix-arg))
   (let ((has-notes-p (papis--doc-get doc "notes")))
     (let ((notes-path (papis--ensured-notes-path doc)))
-      (unless has-notes-p
+      (when (or (not has-notes-p) run-hook)
         (with-current-buffer (find-file notes-path)
           (run-hook-with-args 'papis-edit-new-notes-hook
                               doc)))
@@ -348,7 +355,10 @@ Implement waiting after editing the file like
                       outfile)))
 #+end_src
 ** Document reader
-The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
+
+The main dynamic searcher used in =papis.el= uses
+the function =papis-default-read-format-function=.
+
 #+begin_src emacs-lisp
 (defun papis-default-read-format-function (doc)
   `(
@@ -361,13 +371,31 @@ The main dynamic searcher used in papis is [[https://oremacs.com/swiper/][ivy]].
     .
     ,doc))
 
+
+(defun papis--org-looking-at-link ()
+  (when (eq major-mode 'org-mode)
+    (let* ((context (org-element-lineage (org-element-context)
+                                         '(link)
+                                         t))
+           ;; (type (org-element-type context))
+           (papis-id (org-element-property :path context)))
+      papis-id)))
+#+end_src
+
+the papis reader should be rather understwood as a dwim (do what i mean) reader.
+if you are in =org-mode= and you have the point above a papis link, then
+it will get that paper to do whatever papis action you're planning to do.
+
+#+begin_src emacs-lisp
 (defun papis--read-doc ()
-  (let* ((results (papis-query (read-string papis--query-prompt
-                                            nil 'papis)))
-         (formatted-results (mapcar papis-read-format-function results)))
-    (cdr (assoc
-          (completing-read "Select an entry: " formatted-results)
-          formatted-results))))
+  (if-let ((papis-id (papis--org-looking-at-link)))
+      (papis--from-id papis-id)
+      (let* ((results (papis-query (read-string papis--query-prompt
+                                                nil 'papis)))
+             (formatted-results (mapcar papis-read-format-function results)))
+        (cdr (assoc
+              (completing-read "Select an entry: " formatted-results)
+              formatted-results)))))
 
 (defun papis--from-id (papis-id)
   (let* ((query (format "papis_id:%s" papis-id))
