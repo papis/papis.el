@@ -116,7 +116,7 @@
                  #'shell-command-to-string
                #'shell-command)))
     (funcall sys
-     (format "%s %s %s" papis-binary-path lib-flags cmd))))
+             (format "%s %s %s" papis-binary-path lib-flags cmd))))
 ;; Issuing commands to the shell:1 ends here
 
 ;; =papis-query=
@@ -222,15 +222,14 @@
 ;; [[file:README.org::*=papis-edit=][=papis-edit=:1]]
 (define-minor-mode papis-edit-mode
     "General mode for editing papis files"
-  (defvar-local papis-edit-mode-id nil))
-
-(define-key papis-edit-mode-map
-    (kbd "C-c C-c")
-  (defun papis-edit-update-cache (folder)
-    (interactive (list default-directory))
-    (message "Updating the cache for %s" folder)
-    (papis--cmd (format "cache update --doc-folder %s"
-                        folder))))
+  :keymap (let ((m (make-sparse-keymap)))
+            (define-key m (kbd "C-c C-c")
+              (defun papis-edit-update-cache (folder)
+                (interactive (list default-directory))
+                (message "Updating the cache for %s" folder)
+                (papis--cmd (format "cache update --doc-folder %s"
+                                    folder))))
+            m))
 
 (defun papis-edit (doc)
   (interactive (list (papis--read-doc)))
@@ -307,12 +306,12 @@
 (defun papis--read-doc ()
   (if-let ((papis-id (papis--org-looking-at-link)))
       (papis--from-id papis-id)
-      (let* ((results (papis-query (read-string papis--query-prompt
-                                                nil 'papis)))
-             (formatted-results (mapcar papis-read-format-function results)))
-        (cdr (assoc
-              (completing-read "Select an entry: " formatted-results)
-              formatted-results)))))
+    (let* ((results (papis-query (read-string papis--query-prompt
+                                              nil 'papis)))
+           (formatted-results (mapcar papis-read-format-function results)))
+      (cdr (assoc
+            (completing-read "Select an entry: " formatted-results)
+            formatted-results)))))
 
 (defun papis--from-id (papis-id)
   (let* ((query (format "papis_id:%s" papis-id))
@@ -346,8 +345,8 @@
 
 (defun ol-papis-export (papis-id description format info)
   (let* ((doc (papis--from-id papis-id))
-        (doi (papis--doc-get doc "doi"))
-        (url (papis--doc-get doc "url")))
+         (doi (papis--doc-get doc "doi"))
+         (url (papis--doc-get doc "url")))
     (cond
       (doi (org-link-doi-export doi description format info)))))
 ;; =papis=:1 ends here
@@ -383,13 +382,13 @@
 
 ;; [[file:README.org::*Open pdfs][Open pdfs:2]]
 (defun papis-org-ref-get-pdf-filename (key)
-    (interactive)
-    (let* ((docs (papis-query (format "ref:'%s'" key)))
-           (doc (car docs))
-           (files (papis--get-file-paths doc)))
-      (pcase (length files)
-        (1 (car files))
-        (_ (completing-read "" files)))))
+  (interactive)
+  (let* ((docs (papis-query (format "ref:'%s'" key)))
+         (doc (car docs))
+         (files (papis--get-file-paths doc)))
+    (pcase (length files)
+      (1 (car files))
+      (_ (completing-read "" files)))))
 ;; Open pdfs:2 ends here
 
 ;; Citations
@@ -431,7 +430,7 @@
 
 ;; [[file:README.org::*Convert references into bibtex entries][Convert references into bibtex entries:2]]
 (defvar papis--refs-to-bibtex-script
-"
+  "
 import argparse
 import papis.api
 from papis.bibtex import to_bibtex
