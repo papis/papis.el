@@ -33,8 +33,8 @@ since =org-noter= is quite simply designed.
 You can get away with the following configuration
 
 #+begin_src emacs-lisp
-(setq org-noter-notes-search-path '("./"))
-(setq org-noter-default-notes-file-names '("notes.org"))
+(defmacro @papis-query ()
+  `(interactive ,papis--query-prompt))
 #+end_src
 
 When opening a =pdf= file of a papis document you can just type
@@ -224,7 +224,7 @@ take care of having the same query prompt in all commands.
                  #'shell-command-to-string
                #'shell-command)))
     (funcall sys
-     (format "%s %s %s" papis-binary-path lib-flags cmd))))
+             (format "%s %s %s" papis-binary-path lib-flags cmd))))
  #+end_src
 **** =papis-query=
 
@@ -324,15 +324,16 @@ Implement waiting after editing the file like
 #+begin_src emacs-lisp
 (define-minor-mode papis-edit-mode
     "General mode for editing papis files"
+
+  :keymap '((kbd "C-c C-c")
+            (defun papis-edit-update-cache (folder)
+              (interactive (list default-directory))
+              (message "Updating the cache for %s" folder)
+              (papis--cmd (format "cache update --doc-folder %s"
+                                  folder))))
+
   (defvar-local papis-edit-mode-id nil))
 
-(define-key papis-edit-mode-map
-    (kbd "C-c C-c")
-  (defun papis-edit-update-cache (folder)
-    (interactive (list default-directory))
-    (message "Updating the cache for %s" folder)
-    (papis--cmd (format "cache update --doc-folder %s"
-                        folder))))
 
 (defun papis-edit (doc)
   (interactive (list (papis--read-doc)))
@@ -402,12 +403,12 @@ it will get that paper to do whatever papis action you're planning to do.
 (defun papis--read-doc ()
   (if-let ((papis-id (papis--org-looking-at-link)))
       (papis--from-id papis-id)
-      (let* ((results (papis-query (read-string papis--query-prompt
-                                                nil 'papis)))
-             (formatted-results (mapcar papis-read-format-function results)))
-        (cdr (assoc
-              (completing-read "Select an entry: " formatted-results)
-              formatted-results)))))
+    (let* ((results (papis-query (read-string papis--query-prompt
+                                              nil 'papis)))
+           (formatted-results (mapcar papis-read-format-function results)))
+      (cdr (assoc
+            (completing-read "Select an entry: " formatted-results)
+            formatted-results)))))
 
 (defun papis--from-id (papis-id)
   (let* ((query (format "papis_id:%s" papis-id))
@@ -441,11 +442,10 @@ it will get that paper to do whatever papis action you're planning to do.
 
 (defun ol-papis-export (papis-id description format info)
   (let* ((doc (papis--from-id papis-id))
-        (doi (papis--doc-get doc "doi"))
-        (url (papis--doc-get doc "url")))
+         (doi (papis--doc-get doc "doi"))
+         (url (papis--doc-get doc "url")))
     (cond
       (doi (org-link-doi-export doi description format info)))))
-
 #+end_src
 
 
