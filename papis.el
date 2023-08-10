@@ -62,11 +62,11 @@
 ;; Document
 
 ;; [[file:README.org::*Document][Document:1]]
-(defun papis--doc-get-folder (doc)
-  (papis--doc-get doc "_papis_local_folder"))
+(defun papis-doc-get-folder (doc)
+  (papis-doc-get doc "_papis_local_folder"))
 
 (defun papis-doc-id (doc)
-  (let ((id (papis--doc-get doc "papis_id")))
+  (let ((id (papis-doc-get doc "papis_id")))
     (unless id
       (error "Document '%s' does not have an id!"
              doc))
@@ -78,19 +78,19 @@
 
 ;; [[file:README.org::*Document][Document:2]]
 (defun papis--get-file-paths (doc)
-  (mapcar (lambda (f) (concat (papis--doc-get-folder doc) "/" f))
-          (papis--doc-get doc "files")))
+  (mapcar (lambda (f) (concat (papis-doc-get-folder doc) "/" f))
+          (papis-doc-get doc "files")))
 
-(defun papis--doc-get (doc key &optional default)
+(defun papis-doc-get (doc key &optional default)
   (gethash key doc default))
 
 (defun papis--get-ref (doc)
-  (papis--doc-get doc "ref"))
+  (papis-doc-get doc "ref"))
 ;; Document:2 ends here
 
 ;; [[file:README.org::*Document][Document:3]]
 (defun papis--doc-update (doc)
-  (let ((folder (papis--doc-get-folder doc)))
+  (let ((folder (papis-doc-get-folder doc)))
     (papis--cmd (concat "update --doc-folder " folder))))
 ;; Document:3 ends here
 
@@ -190,7 +190,7 @@
                 t)))
 
 (defun papis--ensured-notes-path (doc)
-  (let ((maybe-notes (papis--doc-get doc "notes"))
+  (let ((maybe-notes (papis-doc-get doc "notes"))
         (id-query (papis-id-query doc)))
     (unless maybe-notes
       (setq maybe-notes (papis--default-notes-name))
@@ -209,7 +209,7 @@
   """
   (interactive (list (papis--read-doc)
                      current-prefix-arg))
-  (let ((has-notes-p (papis--doc-get doc "notes")))
+  (let ((has-notes-p (papis-doc-get doc "notes")))
     (let ((notes-path (papis--ensured-notes-path doc)))
       (when (or (not has-notes-p) run-hook)
         (with-current-buffer (find-file notes-path)
@@ -240,7 +240,7 @@
 
 (defun papis-edit (doc)
   (interactive (list (papis--read-doc)))
-  (let* ((folder (papis--doc-get-folder doc))
+  (let* ((folder (papis-doc-get-folder doc))
          (info (concat folder "/" "info.yaml")))
     (find-file info)
     (papis-edit-mode)))
@@ -292,11 +292,11 @@
 (defun papis-default-read-format-function (doc)
   `(
     ,(format "%s\n\t%s\n\t«%s» +%s %s"
-             (papis--doc-get doc "title")
-             (papis--doc-get doc "author")
-             (papis--doc-get doc "year")
-             (or (papis--doc-get doc "tags") "")
-             (let ((n (papis--doc-get doc "_note"))) (if n (concat ":note " n) "")))
+             (papis-doc-get doc "title")
+             (papis-doc-get doc "author")
+             (papis-doc-get doc "year")
+             (or (papis-doc-get doc "tags") "")
+             (let ((n (papis-doc-get doc "_note"))) (if n (concat ":note " n) "")))
     .
     ,doc))
 
@@ -319,7 +319,7 @@
 
 
 ;; [[file:README.org::*Document reader][Document reader:2]]
-(defun papis--from-id (papis-id)
+(defun papis-from-id (papis-id)
   (let* ((query (format "papis_id:%s" papis-id))
          (results (papis-query :query query)))
     (pcase (length results)
@@ -334,7 +334,7 @@
     ;; if in org mode and in org link, return it
     ((and (not force-query)
           (papis--org-looking-at-link))
-     (papis--from-id (papis--org-looking-at-link)))
+     (papis-from-id (papis--org-looking-at-link)))
     ((and (not force-query)
           (let* ((filename (buffer-file-name (current-buffer)))
                  (dirname (f-dirname filename))
@@ -357,22 +357,22 @@
 (require 'ol-doi)
 (org-link-set-parameters "papis"
                          :follow (lambda (papis-id)
-                                   (papis-open (papis--from-id papis-id)))
+                                   (papis-open (papis-from-id papis-id)))
                          :export #'ol-papis-export
                          :complete (lambda (&optional arg)
                                      (format "papis:%s"
-                                             (papis--doc-get (papis--read-doc)
-                                                             "papis_id")))
+                                             (papis-doc-get (papis--read-doc)
+                                                            "papis_id")))
                          :insert-description
                          (lambda (link desc)
                            (let* ((papis-id (string-replace "papis:"  "" link))
-                                  (doc (papis--from-id papis-id)))
-                             (papis--doc-get doc "title"))))
+                                  (doc (papis-from-id papis-id)))
+                             (papis-doc-get doc "title"))))
 
 (defun ol-papis-export (papis-id description format info)
-  (let* ((doc (papis--from-id papis-id))
-         (doi (papis--doc-get doc "doi"))
-         (url (papis--doc-get doc "url")))
+  (let* ((doc (papis-from-id papis-id))
+         (doi (papis-doc-get doc "doi"))
+         (url (papis-doc-get doc "url")))
     (cond
       (doi (org-link-doi-export doi description format info)))))
 ;; =papis=:1 ends here
@@ -388,11 +388,11 @@
 ;; [[file:README.org::*Paper sections][Paper sections:1]]
 (defun papis-org-insert-heading (doc)
   (interactive (list (papis--read-doc)))
-  (let ((title (papis--doc-get doc "title"))
-        (author (papis--doc-get doc "author"))
-        (year (papis--doc-get doc "year"))
-        (doi (papis--doc-get doc "doi"))
-        (papis-id (papis--doc-get doc "papis_id")))
+  (let ((title (papis-doc-get doc "title"))
+        (author (papis-doc-get doc "author"))
+        (year (papis-doc-get doc "year"))
+        (doi (papis-doc-get doc "doi"))
+        (papis-id (papis-doc-get doc "papis_id")))
     (org-insert-heading)
     (insert (format "[[papis:%s][%s]]" papis-id title))
     (org-set-property "PAPIS_ID" papis-id)
@@ -408,13 +408,13 @@
 
 ;; [[file:README.org::*Open pdfs][Open pdfs:2]]
 (defun papis-org-ref-get-pdf-filename (key)
-    (interactive)
-    (let* ((docs (papis-query (format "ref:'%s'" key)))
-           (doc (car docs))
-           (files (papis--get-file-paths doc)))
-      (pcase (length files)
-        (1 (car files))
-        (_ (completing-read "" files)))))
+  (interactive)
+  (let* ((docs (papis-query (format "ref:'%s'" key)))
+         (doc (car docs))
+         (files (papis--get-file-paths doc)))
+    (pcase (length files)
+      (1 (car files))
+      (_ (completing-read "" files)))))
 ;; Open pdfs:2 ends here
 
 ;; Citations
@@ -456,7 +456,7 @@
 
 ;; [[file:README.org::*Convert references into bibtex entries][Convert references into bibtex entries:2]]
 (defvar papis--refs-to-bibtex-script
-"
+  "
 import argparse
 import papis.api
 from papis.bibtex import to_bibtex
