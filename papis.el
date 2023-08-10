@@ -65,7 +65,7 @@
 (defun papis--doc-get-folder (doc)
   (papis--doc-get doc "_papis_local_folder"))
 
-(defun papis--id (doc)
+(defun papis-doc-id (doc)
   (let ((id (papis--doc-get doc "papis_id")))
     (unless id
       (error "Document '%s' does not have an id!"
@@ -73,7 +73,7 @@
     id))
 
 (defun papis-id-query (doc)
-  (format "papis_id:%s" (papis--id doc)))
+  (format "papis_id:%s" (papis-doc-id doc)))
 ;; Document:1 ends here
 
 ;; [[file:README.org::*Document][Document:2]]
@@ -228,11 +228,14 @@
 (define-minor-mode papis-edit-mode
     "General mode for editing papis files"
 
-  :keymap `(,(kbd "C-c C-c") . ,(defun papis-edit-update-cache (folder)
-                                  (interactive (list default-directory))
-                                  (message "Updating the cache for %s" folder)
-                                  (papis--cmd (format "cache update --doc-folder %s"
-                                                      folder)))))
+  :keymap '((kbd "C-c C-c")
+            (defun papis-edit-update-cache (folder)
+              (interactive (list default-directory))
+              (message "Updating the cache for %s" folder)
+              (papis--cmd (format "cache update --doc-folder %s"
+                                  folder))))
+
+  (defvar-local papis-edit-mode-id nil))
 
 
 (defun papis-edit (doc)
@@ -259,7 +262,6 @@
 
 
 ;; [[file:README.org::*=papis-export=][=papis-export=:1]]
-
 (progn
   (defmacro papis--make-exporter (format-name)
     `(cl-defun ,(intern (format "papis-%s" format-name))
@@ -406,13 +408,13 @@
 
 ;; [[file:README.org::*Open pdfs][Open pdfs:2]]
 (defun papis-org-ref-get-pdf-filename (key)
-  (interactive)
-  (let* ((docs (papis-query :query (format "ref:'%s'" key)))
-         (doc (car docs))
-         (files (papis--get-file-paths doc)))
-    (pcase (length files)
-      (1 (car files))
-      (_ (completing-read "" files)))))
+    (interactive)
+    (let* ((docs (papis-query (format "ref:'%s'" key)))
+           (doc (car docs))
+           (files (papis--get-file-paths doc)))
+      (pcase (length files)
+        (1 (car files))
+        (_ (completing-read "" files)))))
 ;; Open pdfs:2 ends here
 
 ;; Citations
@@ -454,7 +456,7 @@
 
 ;; [[file:README.org::*Convert references into bibtex entries][Convert references into bibtex entries:2]]
 (defvar papis--refs-to-bibtex-script
-  "
+"
 import argparse
 import papis.api
 from papis.bibtex import to_bibtex
