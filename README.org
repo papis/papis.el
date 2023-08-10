@@ -111,6 +111,7 @@ The libraries that we will need are therefore:
 #+begin_src emacs-lisp :noweb yes
 (require 'ol)
 (require 'json)
+(require 'f)
 
 (defgroup papis nil
   "Official papis package for emacs"
@@ -180,7 +181,7 @@ You can set the main library used in papis by setting
              doc))
     id))
 
-(defun papis--id-query (doc)
+(defun papis-id-query (doc)
   (format "papis_id:%s" (papis--id doc)))
 #+end_src
 
@@ -189,8 +190,8 @@ You can set the main library used in papis by setting
   (mapcar (lambda (f) (concat (papis--doc-get-folder doc) "/" f))
           (papis--doc-get doc "files")))
 
-(defun papis--doc-get (doc key)
-  (gethash key doc))
+(defun papis--doc-get (doc key &optional default)
+  (gethash key doc default))
 
 (defun papis--get-ref (doc)
   (papis--doc-get doc "ref"))
@@ -215,16 +216,18 @@ take care of having the same query prompt in all commands.
  The main interface with papis commands will be =papis--cmd=
  which is a function intended for library writers.
  #+begin_src emacs-lisp
-(defun papis--cmd (cmd &optional with-stdout)
+(cl-defun papis--cmd (cmd &optional with-stdout)
   "Helping function to run papis commands"
-  (let ((lib-flags (if papis-library
-                       (concat "-l " papis-library)
-                     ""))
-        (sys (if with-stdout
-                 #'shell-command-to-string
-               #'shell-command)))
+  (let* ((lib-flags (if papis-library
+                        (concat "-l " papis-library)
+                      ""))
+         (sys (if with-stdout
+                  #'shell-command-to-string
+                #'shell-command))
+         (full-cmd (format "%s %s %s" papis-binary-path lib-flags cmd)))
+    (message full-cmd)
     (funcall sys
-             (format "%s %s %s" papis-binary-path lib-flags cmd))))
+             full-cmd)))
  #+end_src
 **** =papis-query=
 
@@ -236,17 +239,19 @@ we query python and get a json document with the documents that
 emacs reads in.
 
  #+begin_src emacs-lisp
-(defun papis-query (query)
+(defun papis--json-string-to-documents (json-file)
+  (let ((json-object-type 'hash-table)
+        (json-array-type 'list)
+        (json-key-type 'string))
+    (json-read-from-string json-file)))
+
+(cl-defun papis-query (&key query id doc-folder)
   "Make a general papis query:
    it returns a list of hashtables where every hashtable is a papis document"
-  (let* ((json-object-type 'hash-table)
-         (json-array-type 'list)
-         (json-key-type 'string)
-         (papis--temp-output-file (make-temp-file "papis-emacs-"))
-         (exit-code (papis-json query papis--temp-output-file)))
-    (if (not (eq exit-code 0))
-        (error "Something happened running the papis command"))
-    (json-read-file papis--temp-output-file)))
+  (when id
+    (setq query (papis-id-query id)))
+  (papis--json-string-to-documents (papis-json :query query
+                                               :doc-folder doc-folder)))
  #+end_src
 *** =papis-open=
 
@@ -281,14 +286,14 @@ the command is also available:
   "Return the notes path to the given document.
    This does not make sure that the notes file exists,
    it just gets a path that hsould be there."
-  (let ((query (papis--id-query doc)))
+  (let ((query (papis-id-query doc)))
     (papis--cmd (format "list --notes %s"
                         query)
                 t)))
 
 (defun papis--ensured-notes-path (doc)
   (let ((maybe-notes (papis--doc-get doc "notes"))
-        (id-query (papis--id-query doc)))
+        (id-query (papis-id-query doc)))
     (unless maybe-notes
       (setq maybe-notes (papis--default-notes-name))
       ;; will this work on windows? someone cares?
@@ -357,15 +362,25 @@ Implement waiting after editing the file like
 *** =papis-export=
 
 #+begin_src emacs-lisp
-(defun papis-json (query outfile)
-  (papis--cmd (format "export --all --format json '%s' -o %s"
-                      query
-                      outfile)))
 
-(defun papis-bibtex (query outfile)
-  (papis--cmd (format "export --all --format bibtex '%s' -o %s"
-                      query
-                      outfile)))
+(progn
+  (defmacro papis--make-exporter (format-name)
+    `(cl-defun ,(intern (format "papis-%s" format-name))
+         (&key query doc-folder)
+       (let ((outfile (make-temp-file "papis-")))
+         (papis--cmd (format "export --all --format %s %s -o %s"
+                             ,(symbol-name format-name)
+                             (if doc-folder (format "--doc-folder %S" doc-folder)
+                               (format "%S" query))
+                             outfile))
+         (with-current-buffer (find-file-noselect outfile)
+           (prog1 (buffer-string)
+             (kill-buffer))))))
+
+  (papis--make-exporter bibtex)
+  (papis--make-exporter yaml)
+  (papis--make-exporter typist)
+  (papis--make-exporter json))
 #+end_src
 ** Document reader
 
@@ -400,25 +415,35 @@ if you are in =org-mode= and you have the point above a papis link, then
 it will get that paper to do whatever papis action you're planning to do.
 
 #+begin_src emacs-lisp
-(defun papis--read-doc ()
-  (if-let ((papis-id (papis--org-looking-at-link)))
-      (papis--from-id papis-id)
-    (let* ((results (papis-query (read-string papis--query-prompt
-                                              nil 'papis)))
-           (formatted-results (mapcar papis-read-format-function results)))
-      (cdr (assoc
-            (completing-read "Select an entry: " formatted-results)
-            formatted-results)))))
-
 (defun papis--from-id (papis-id)
   (let* ((query (format "papis_id:%s" papis-id))
-         (results (papis-query query)))
+         (results (papis-query :query query)))
     (pcase (length results)
       (0 (error "No documents found with papis_id '%s'"
                 papis-id))
       (1 (car results))
       (_ (error "Too many documents (%d) found with papis_id '%s'"
                 (length results) papis-id)))))
+
+(defun papis--read-doc (&optional force-query)
+  (cond
+    ;; if in org mode and in org link, return it
+    ((and (not force-query)
+          (papis--org-looking-at-link))
+     (papis--from-id (papis--org-looking-at-link)))
+    ((and (not force-query)
+          (let* ((filename (buffer-file-name (current-buffer)))
+                 (dirname (f-dirname filename))
+                 (yaml.info (f-join dirname "info.yaml")))
+            (when (file-exists-p yaml.info)
+              (car (papis-query :doc-folder dirname))))))
+    ((and (not force-query)
+          (let* ((results (papis-query :query (read-string papis--query-prompt
+                                                           nil 'papis)))
+                 (formatted-results (mapcar papis-read-format-function results)))
+            (cdr (assoc
+                  (completing-read "Select an entry: " formatted-results)
+                  formatted-results)))))))
 #+end_src
 
 ** Org-links
