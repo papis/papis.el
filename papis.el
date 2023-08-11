@@ -156,6 +156,26 @@
 
 
 ;; [[file:README.org::*=papis-open=][=papis-open=:1]]
+(cl-defun papis--update (&key id doc-folder alist)
+  (let (sets)
+    (dolist (pair alist)
+      (push (format "--set %s %S" (car pair) (cdr pair))
+            sets))
+    (papis--cmd (format "update %s %s"
+                        (string-join sets " ")
+                        (if doc-folder
+                            (format "--doc-folder %S" doc-folder)
+                          (format "papis_id:%s" id))))))
+(defun papis-browse (doc)
+  (interactive (list (papis--read-doc)))
+  (let ((url
+         (cond
+           ((papis-doc-get doc "url" nil))
+           ((when-let ((doi (papis-doc-get doc "doi" nil)))
+              (format "https://doi.org/%s" doi))
+            (t (error "Neither url nor doi found in this document."))))))
+    (browse-url url)))
+
 (defun papis-open (doc)
   (interactive (list (papis--read-doc)))
   (let* ((files (papis--get-file-paths doc))
