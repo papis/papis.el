@@ -101,7 +101,9 @@ And to add these kind of lines you can use this function
     :header-args:emacs-lisp+: :comments both
     :header-args:emacs-lisp+: :results silent
   :END:
-=papis.el= is written as a literate program [cite:@LiteratePrograKnuth1984].
+
+=papis.el= is written as a literate program.
+
 ** Generalities
 
 - We interact with papis through the papis' json exporter.
@@ -677,30 +679,4 @@ for d in docs:
 #+begin_src emacs-lisp
 (provide 'papis)
 #+end_src
-
-* Bibliography
-#+begin: papis-bibtex-refs :tangle /home/gallo/software/papis.el/main.bib
-#+begin_src bibtex :exports none :tangle /home/gallo/software/papis.el/main.bib
-@article{LiteratePrograKnuth1984,
-  author = {Knuth, D. E.},
-  doi = {10.1093/comjnl/27.2.97},
-  issn = {0010-4620},
-  issue = {2},
-  journal = {The Computer Journal},
-  language = {en},
-  month = {2},
-  pages = {97--111},
-  publisher = {Oxford University Press (OUP)},
-  title = {Literate Programming},
-  url = {http://dx.doi.org/10.1093/comjnl/27.2.97},
-  volume = {27},
-  year = {1984},
-}
-
-#+end_src
-
-#+end:
-
-bibliography:main.bib
-bibliographystyle:unsrt
 
