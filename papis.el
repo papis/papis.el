@@ -239,12 +239,12 @@
 ;; [[file:README.org::*=papis-edit=][=papis-edit=:1]]
 (define-minor-mode papis-edit-mode
     "General mode for editing papis files"
-  :keymap `(,(kbd "C-c C-c")
-            ,(defun papis-edit-update-cache (folder)
-              (interactive (list default-directory))
-              (message "Updating the cache for %s" folder)
-              (papis--cmd (format "cache update --doc-folder %s"
-                                  folder))))
+  :keymap `((,(kbd "C-c C-c") .
+              ,(defun papis-edit-update-cache (folder)
+                 (interactive (list default-directory))
+                 (message "Updating the cache for %s" folder)
+                 (papis--cmd (format "cache update --doc-folder %s"
+                                     folder)))))
 
   (defvar-local papis-edit-mode-id nil))
 
