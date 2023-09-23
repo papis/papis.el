@@ -24,7 +24,7 @@ jobs:
 
     - uses: purcell/setup-emacs@master
       with:
-          version: 29
+          version: 29.1
 
     - name: Tangle and check
       run: |
