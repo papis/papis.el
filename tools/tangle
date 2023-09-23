@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+set -x
+emacs -Q \
+  --batch \
+  --load "$(dirname "$0")"/config.el "${1:?give me org file}" \
+  -f org-babel-tangle

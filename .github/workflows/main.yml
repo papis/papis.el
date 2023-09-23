@@ -28,6 +28,6 @@ jobs:
     - name: Tangle and check
       run: |
         cp papis.el papis.el.bak
-        emacs -Q --batch --eval "(require 'ob-tangle)" README.org -f org-babel-tangle
+        ./tools/tangle README.org
         test -f papis.el
         diff papis.el papis.el.bak
