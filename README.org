@@ -680,3 +680,8 @@ for d in docs:
 (provide 'papis)
 #+end_src
 
+** Emacs                                                           :noexport:
+
+# Local Variables:
+# org-babel-tangle-use-relative-file-links: t
+# End:
